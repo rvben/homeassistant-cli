@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 
 use homeassistant_cli::output::{OutputConfig, OutputFormat, exit_codes};
 use homeassistant_cli::{api, commands};
@@ -53,6 +53,12 @@ enum Command {
 
     /// Print machine-readable schema of all commands
     Schema,
+
+    /// Generate shell completions
+    Completions {
+        /// Shell to generate completions for
+        shell: clap_complete::Shell,
+    },
 }
 
 #[derive(Subcommand)]
@@ -124,6 +130,9 @@ async fn main() {
         Command::Schema => {
             commands::schema::print_schema();
         }
+        Command::Completions { shell } => {
+            clap_complete::generate(shell, &mut Cli::command(), "ha", &mut std::io::stdout());
+        }
         Command::Config(cmd) => match cmd {
             ConfigCommand::Show => {
                 commands::config::show(&out, cli.profile.as_deref());
@@ -181,7 +190,10 @@ async fn main() {
                         commands::event::watch(&out, &client, event_type.as_deref()).await
                     }
                 },
-                Command::Init { .. } | Command::Schema | Command::Config(_) => unreachable!(),
+                Command::Init { .. }
+                | Command::Schema
+                | Command::Config(_)
+                | Command::Completions { .. } => unreachable!(),
             };
 
             if let Err(e) = result {

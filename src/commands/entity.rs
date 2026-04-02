@@ -66,14 +66,24 @@ pub async fn list(
         let rows: Vec<Vec<String>> = states
             .iter()
             .map(|s| {
+                let name = s
+                    .attributes
+                    .get("friendly_name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_owned();
                 vec![
                     output::colored_entity_id(&s.entity_id),
+                    name,
                     output::colored_state(&s.state),
                     output::relative_time(&s.last_updated),
                 ]
             })
             .collect();
-        out.print_data(&output::table(&["ENTITY", "STATE", "UPDATED"], &rows));
+        out.print_data(&output::table(
+            &["ENTITY", "NAME", "STATE", "UPDATED"],
+            &rows,
+        ));
     }
     Ok(())
 }

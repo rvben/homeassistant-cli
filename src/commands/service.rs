@@ -62,19 +62,44 @@ pub async fn list(
                 .expect("serialize"),
         );
     } else {
-        let rows: Vec<Vec<String>> = domains
+        let mut rows: Vec<Vec<String>> = domains
             .iter()
             .flat_map(|d| {
                 d.services.iter().map(|(svc, info)| {
                     vec![
-                        format!("{}.{}", d.domain, svc),
+                        output::colored_entity_id(&format!("{}.{}", d.domain, svc)),
                         info.name.clone().unwrap_or_default(),
                         info.description.clone().unwrap_or_default(),
                     ]
                 })
             })
             .collect();
-        out.print_data(&output::table(&["SERVICE", "NAME", "DESCRIPTION"], &rows));
+        rows.sort_by(|a, b| a[0].cmp(&b[0]));
+
+        // Only show NAME and DESCRIPTION columns if any row has non-empty values.
+        let has_names = rows.iter().any(|r| !r[1].is_empty());
+        let has_descriptions = rows.iter().any(|r| !r[2].is_empty());
+
+        let (headers, display_rows): (&[&str], Vec<Vec<String>>) =
+            match (has_names, has_descriptions) {
+                (true, true) => (&["SERVICE", "NAME", "DESCRIPTION"], rows),
+                (true, false) => (
+                    &["SERVICE", "NAME"],
+                    rows.into_iter()
+                        .map(|mut r| {
+                            r.pop();
+                            r
+                        })
+                        .collect(),
+                ),
+                _ => (
+                    &["SERVICE"],
+                    rows.into_iter()
+                        .map(|r| vec![r.into_iter().next().unwrap()])
+                        .collect(),
+                ),
+            };
+        out.print_data(&output::table(headers, &display_rows));
     }
     Ok(())
 }
