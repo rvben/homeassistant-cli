@@ -155,8 +155,19 @@ async fn main() {
                     }
                 },
                 Command::Service(cmd) => match cmd {
-                    ServiceCommand::Call { service, entity, data } => {
-                        commands::service::call(&out, &client, &service, entity.as_deref(), data.as_deref()).await
+                    ServiceCommand::Call {
+                        service,
+                        entity,
+                        data,
+                    } => {
+                        commands::service::call(
+                            &out,
+                            &client,
+                            &service,
+                            entity.as_deref(),
+                            data.as_deref(),
+                        )
+                        .await
                     }
                     ServiceCommand::List { domain } => {
                         commands::service::list(&out, &client, domain.as_deref()).await

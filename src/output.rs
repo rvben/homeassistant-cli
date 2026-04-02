@@ -54,7 +54,10 @@ impl OutputConfig {
                     "message": e.to_string()
                 }
             });
-            println!("{}", serde_json::to_string_pretty(&envelope).expect("serialize"));
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&envelope).expect("serialize")
+            );
         } else {
             eprintln!("{e}");
         }
@@ -63,7 +66,10 @@ impl OutputConfig {
     /// Print a JSON result or human message depending on format.
     pub fn print_result(&self, json_value: &serde_json::Value, human_message: &str) {
         if self.is_json() {
-            println!("{}", serde_json::to_string_pretty(json_value).expect("serialize"));
+            println!(
+                "{}",
+                serde_json::to_string_pretty(json_value).expect("serialize")
+            );
         } else {
             println!("{human_message}");
         }
@@ -203,21 +209,35 @@ mod tests {
         });
         assert_eq!(envelope["ok"], false);
         assert_eq!(envelope["error"]["code"], "HA_NOT_FOUND");
-        assert!(envelope["error"]["message"].as_str().unwrap().contains("light.missing"));
+        assert!(
+            envelope["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("light.missing")
+        );
     }
 
     #[test]
     fn exit_code_for_auth_error_is_2() {
-        assert_eq!(exit_codes::for_error(&crate::api::HaError::Auth("x".into())), 2);
+        assert_eq!(
+            exit_codes::for_error(&crate::api::HaError::Auth("x".into())),
+            2
+        );
     }
 
     #[test]
     fn exit_code_for_not_found_is_3() {
-        assert_eq!(exit_codes::for_error(&crate::api::HaError::NotFound("x".into())), 3);
+        assert_eq!(
+            exit_codes::for_error(&crate::api::HaError::NotFound("x".into())),
+            3
+        );
     }
 
     #[test]
     fn exit_code_for_connection_error_is_4() {
-        assert_eq!(exit_codes::for_error(&crate::api::HaError::Connection("x".into())), 4);
+        assert_eq!(
+            exit_codes::for_error(&crate::api::HaError::Connection("x".into())),
+            4
+        );
     }
 }

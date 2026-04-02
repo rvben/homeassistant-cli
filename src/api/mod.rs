@@ -73,7 +73,9 @@ impl From<reqwest::Error> for HaError {
     fn from(e: reqwest::Error) -> Self {
         if e.is_connect() || e.is_timeout() {
             HaError::Connection(
-                e.url().map(|u| u.to_string()).unwrap_or_else(|| "unknown".into()),
+                e.url()
+                    .map(|u| u.to_string())
+                    .unwrap_or_else(|| "unknown".into()),
             )
         } else {
             HaError::Http(e)
@@ -147,9 +149,22 @@ mod tests {
     fn error_code_returns_expected_strings() {
         assert_eq!(HaError::Auth("x".into()).error_code(), "HA_AUTH_ERROR");
         assert_eq!(HaError::NotFound("x".into()).error_code(), "HA_NOT_FOUND");
-        assert_eq!(HaError::InvalidInput("x".into()).error_code(), "HA_INVALID_INPUT");
-        assert_eq!(HaError::Connection("x".into()).error_code(), "HA_CONNECTION_ERROR");
-        assert_eq!(HaError::Api { status: 500, message: "x".into() }.error_code(), "HA_API_ERROR");
+        assert_eq!(
+            HaError::InvalidInput("x".into()).error_code(),
+            "HA_INVALID_INPUT"
+        );
+        assert_eq!(
+            HaError::Connection("x".into()).error_code(),
+            "HA_CONNECTION_ERROR"
+        );
+        assert_eq!(
+            HaError::Api {
+                status: 500,
+                message: "x".into()
+            }
+            .error_code(),
+            "HA_API_ERROR"
+        );
         assert_eq!(HaError::Other("x".into()).error_code(), "HA_ERROR");
     }
 

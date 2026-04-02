@@ -153,10 +153,7 @@ mod tests {
     fn schema_entity_get_has_json_shape() {
         let schema = build_schema();
         let commands = schema["commands"].as_array().unwrap();
-        let entity_get = commands
-            .iter()
-            .find(|c| c["name"] == "entity get")
-            .unwrap();
+        let entity_get = commands.iter().find(|c| c["name"] == "entity get").unwrap();
         assert!(entity_get["json_shape"]["data"]["entity_id"].is_string());
         assert!(entity_get["json_shape"]["data"]["state"].is_string());
     }
