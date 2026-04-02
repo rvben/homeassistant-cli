@@ -21,23 +21,40 @@ impl HaClient {
 
 #[derive(Debug)]
 pub enum HaError {
-    Config(String),
+    Auth(String),
     NotFound(String),
-    Api(String),
-    Http(String),
-    Json(String),
+    InvalidInput(String),
+    Connection(String),
+    Api { status: u16, message: String },
+    Http(reqwest::Error),
+    Other(String),
 }
 
 impl fmt::Display for HaError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            HaError::Config(msg) => write!(f, "config error: {msg}"),
+            HaError::Auth(msg) => write!(f, "auth error: {msg}"),
             HaError::NotFound(msg) => write!(f, "not found: {msg}"),
-            HaError::Api(msg) => write!(f, "API error: {msg}"),
-            HaError::Http(msg) => write!(f, "HTTP error: {msg}"),
-            HaError::Json(msg) => write!(f, "JSON error: {msg}"),
+            HaError::InvalidInput(msg) => write!(f, "invalid input: {msg}"),
+            HaError::Connection(msg) => write!(f, "connection error: {msg}"),
+            HaError::Api { status, message } => write!(f, "API error {status}: {message}"),
+            HaError::Http(e) => write!(f, "HTTP error: {e}"),
+            HaError::Other(msg) => write!(f, "error: {msg}"),
         }
     }
 }
 
-impl std::error::Error for HaError {}
+impl std::error::Error for HaError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            HaError::Http(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+impl From<reqwest::Error> for HaError {
+    fn from(e: reqwest::Error) -> Self {
+        HaError::Http(e)
+    }
+}
