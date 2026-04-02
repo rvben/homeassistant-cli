@@ -192,29 +192,27 @@ where
                 return Ok(());
             };
             (name, false)
+        } else if existing_profiles.len() == 1 {
+            (existing_profiles[0].clone(), true)
         } else {
-            if existing_profiles.len() == 1 {
-                (existing_profiles[0].clone(), true)
-            } else {
-                let options = existing_profiles.join("/");
-                let chosen = prompt_optional(
-                    reader,
+            let options = existing_profiles.join("/");
+            let chosen = prompt_optional(
+                reader,
+                writer,
+                &format!("Profile  [{}]", options),
+                &existing_profiles[0],
+            );
+            let profile = chosen.trim().to_owned();
+            if !existing_profiles.contains(&profile) {
+                let _ = writeln!(
                     writer,
-                    &format!("Profile  [{}]", options),
-                    &existing_profiles[0],
+                    "\n  {} Unknown profile '{}'.",
+                    sym_fail(),
+                    profile
                 );
-                let profile = chosen.trim().to_owned();
-                if !existing_profiles.contains(&profile) {
-                    let _ = writeln!(
-                        writer,
-                        "\n  {} Unknown profile '{}'.",
-                        sym_fail(),
-                        profile
-                    );
-                    return Ok(());
-                }
-                (profile, true)
+                return Ok(());
             }
+            (profile, true)
         }
     };
 

@@ -83,29 +83,28 @@ pub async fn watch(
     api::events::watch_stream(client, Some("state_changed"), |event| {
         if let Ok(data) =
             serde_json::from_value::<crate::api::StateChangedData>(event.data.clone())
+            && data.entity_id == entity_id
         {
-            if data.entity_id == entity_id {
-                if out.is_json() {
-                    if let Ok(s) = serde_json::to_string_pretty(&serde_json::json!({
-                        "ok": true,
-                        "data": data
-                    })) {
-                        println!("{s}");
-                    }
-                } else if let Some(new) = &data.new_state {
-                    let status_sym = if new.state == "on" {
-                        "●".green().to_string()
-                    } else {
-                        "○".dimmed().to_string()
-                    };
-                    println!(
-                        "{} {}  {}  {}",
-                        status_sym,
-                        new.entity_id,
-                        new.state.bold(),
-                        new.last_updated.dimmed()
-                    );
+            if out.is_json() {
+                if let Ok(s) = serde_json::to_string_pretty(&serde_json::json!({
+                    "ok": true,
+                    "data": data
+                })) {
+                    println!("{s}");
                 }
+            } else if let Some(new) = &data.new_state {
+                let status_sym = if new.state == "on" {
+                    "●".green().to_string()
+                } else {
+                    "○".dimmed().to_string()
+                };
+                println!(
+                    "{} {}  {}  {}",
+                    status_sym,
+                    new.entity_id,
+                    new.state.bold(),
+                    new.last_updated.dimmed()
+                );
             }
         }
         true

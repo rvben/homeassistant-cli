@@ -21,13 +21,11 @@ pub async fn call(
         serde_json::json!({})
     };
 
-    if let Some(entity_id) = entity {
-        if let Some(obj) = body.as_object_mut() {
-            obj.insert(
-                "entity_id".into(),
-                serde_json::Value::String(entity_id.to_owned()),
-            );
-        }
+    if let Some(entity_id) = entity && let Some(obj) = body.as_object_mut() {
+        obj.insert(
+            "entity_id".into(),
+            serde_json::Value::String(entity_id.to_owned()),
+        );
     }
 
     let result = api::services::call_service(client, domain, svc, Some(&body)).await?;

@@ -69,10 +69,8 @@ pub async fn watch_stream(
         while let Some(pos) = buffer.find('\n') {
             let line = buffer[..pos].trim_end_matches('\r').to_owned();
             buffer.drain(..=pos);
-            if let Some(event) = parse_sse_data(&line) {
-                if !on_event(event) {
-                    return Ok(());
-                }
+            if let Some(event) = parse_sse_data(&line) && !on_event(event) {
+                return Ok(());
             }
         }
     }
