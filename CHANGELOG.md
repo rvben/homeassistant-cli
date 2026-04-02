@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+
+## [0.1.6](https://github.com/rvben/homeassistant-cli/compare/v0.1.5...v0.1.6) - 2026-04-02
+
+### Added
+
+- truncate table columns to fit terminal width ([f1506a6](https://github.com/rvben/homeassistant-cli/commit/f1506a67a890d8e7dc180950adf8dbbed9f58cc8))
+
 ## [0.1.5](https://github.com/rvben/homeassistant-cli/compare/v0.1.4...v0.1.5) - 2026-04-02
 
 ### Added
