@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+
+## [0.1.4](https://github.com/rvben/homeassistant-cli/compare/v0.1.3...v0.1.4) - 2026-04-02
+
+### Added
+
+- shell completions, friendly name in entity list, improved service list ([523fe36](https://github.com/rvben/homeassistant-cli/commit/523fe368f3dd2b60a93a767f249aa8ecddec61d2))
+
 ## [0.1.3](https://github.com/rvben/homeassistant-cli/compare/v0.1.2...v0.1.3) - 2026-04-02
 
 ### Added
