@@ -1,4 +1,5 @@
 use clap::ValueEnum;
+use std::io::IsTerminal;
 
 #[derive(Clone, Debug, ValueEnum)]
 pub enum OutputFormat {
@@ -15,7 +16,13 @@ pub struct OutputConfig {
 impl OutputConfig {
     pub fn new(format: Option<OutputFormat>, quiet: bool) -> Self {
         Self {
-            format: format.unwrap_or(OutputFormat::Plain),
+            format: format.unwrap_or_else(|| {
+                if std::io::stdout().is_terminal() {
+                    OutputFormat::Table
+                } else {
+                    OutputFormat::Json
+                }
+            }),
             quiet,
         }
     }
