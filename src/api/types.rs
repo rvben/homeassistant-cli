@@ -10,19 +10,19 @@ pub struct EntityState {
     pub last_updated: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct ServiceDomain {
     pub domain: String,
     pub services: BTreeMap<String, ServiceInfo>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct ServiceInfo {
     pub name: Option<String>,
     pub description: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct HaEvent {
     pub event_type: String,
     pub data: serde_json::Value,
@@ -30,7 +30,7 @@ pub struct HaEvent {
     pub time_fired: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct StateChangedData {
     pub entity_id: String,
     pub new_state: Option<EntityState>,
