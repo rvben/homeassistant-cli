@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 
+
+## [0.1.3](https://github.com/rvben/homeassistant-cli/compare/v0.1.2...v0.1.3) - 2026-04-02
+
+### Added
+
+- colorize table output — bold headers, state colors, dim domain prefix and old timestamps ([29813e1](https://github.com/rvben/homeassistant-cli/commit/29813e1fdf3d414f71e359bdedcf73aeea3fbbd0))
+
 ## [0.1.2](https://github.com/rvben/homeassistant-cli/compare/v0.1.1...v0.1.2) - 2026-04-02
 
 ### Added
