@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+
+## [0.1.2](https://github.com/rvben/homeassistant-cli/compare/v0.1.1...v0.1.2) - 2026-04-02
+
+### Added
+
+- show relative timestamps in human output (entity list/watch) ([0f85059](https://github.com/rvben/homeassistant-cli/commit/0f8505900c11a0044c7ba80ebb822c6d6e023ebe))
+- **init**: show token creation URL after host is entered ([f298972](https://github.com/rvben/homeassistant-cli/commit/f29897292055766703a1415497d59c04499c1293))
+
 ## [0.1.1] - 2026-04-02
 
 ### Added
