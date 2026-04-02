@@ -233,11 +233,18 @@ where
             let _ = writeln!(writer, "\nAborted.");
             return Ok(());
         };
+        let token_url = format!("{}/profile/security", url.trim_end_matches('/'));
+        let _ = writeln!(
+            writer,
+            "  {} Create a token at: {}",
+            sym_ok(),
+            sym_dim(&token_url)
+        );
         let Some(token) = prompt_required(
             reader,
             writer,
             "Long-Lived Access Token",
-            "from HA Settings → Profile",
+            "paste token here",
         ) else {
             let _ = writeln!(writer, "\nAborted.");
             return Ok(());
@@ -349,6 +356,8 @@ mod tests {
         let saved = std::fs::read_to_string(&path).unwrap();
         assert!(saved.contains("http://ha.local:8123"));
         assert!(saved.contains("mytoken"));
+        let output = String::from_utf8_lossy(&writer);
+        assert!(output.contains("http://ha.local:8123/profile/security"));
     }
 
     #[tokio::test]
