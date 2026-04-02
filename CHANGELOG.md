@@ -11,6 +11,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+
+## [0.1.9](https://github.com/rvben/homeassistant-cli/compare/v0.1.8...v0.1.9) - 2026-04-02
+
+### Fixed
+
+- rename PyPI package to ha-cli ([675308b](https://github.com/rvben/homeassistant-cli/commit/675308bf877b0fb4e7f38e7062f9a75bc38c4f05))
+
 ## [0.1.8](https://github.com/rvben/homeassistant-cli/compare/v0.1.7...v0.1.8) - 2026-04-02
 
 ## [0.1.7](https://github.com/rvben/homeassistant-cli/compare/v0.1.6...v0.1.7) - 2026-04-02
