@@ -67,8 +67,8 @@ pub async fn list(
             .iter()
             .map(|s| {
                 vec![
-                    s.entity_id.clone(),
-                    s.state.clone(),
+                    output::colored_entity_id(&s.entity_id),
+                    output::colored_state(&s.state),
                     output::relative_time(&s.last_updated),
                 ]
             })

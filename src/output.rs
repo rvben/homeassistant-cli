@@ -1,5 +1,7 @@
 use std::io::IsTerminal;
 
+use owo_colors::OwoColorize;
+
 use crate::api::HaError;
 
 #[derive(Clone, Copy, Debug, PartialEq, clap::ValueEnum)]
@@ -76,6 +78,25 @@ impl OutputConfig {
     }
 }
 
+/// Color a Home Assistant state value for human display.
+pub fn colored_state(state: &str) -> String {
+    match state {
+        "on" | "open" | "home" | "active" | "playing" => state.green().to_string(),
+        "off" | "closed" | "not_home" | "idle" | "paused" => state.dimmed().to_string(),
+        "unavailable" | "unknown" => state.yellow().to_string(),
+        _ => state.to_owned(),
+    }
+}
+
+/// Dim the domain prefix of an entity ID, leaving the name at normal brightness.
+/// `light.left_key_light` → `[dim]light.[/dim]left_key_light`
+pub fn colored_entity_id(entity_id: &str) -> String {
+    match entity_id.split_once('.') {
+        Some((domain, name)) => format!("{}.{}", domain.dimmed(), name),
+        None => entity_id.to_owned(),
+    }
+}
+
 /// Format an ISO 8601 timestamp as a human-friendly relative time ("2m ago").
 /// Falls back to the raw string if parsing fails.
 pub fn relative_time(iso: &str) -> String {
@@ -89,7 +110,7 @@ pub fn relative_time(iso: &str) -> String {
     match parse_unix_secs(iso) {
         Some(ts) => {
             let secs = now.saturating_sub(ts);
-            if secs < 60 {
+            let s = if secs < 60 {
                 format!("{secs}s ago")
             } else if secs < 3600 {
                 format!("{}m ago", secs / 60)
@@ -97,6 +118,12 @@ pub fn relative_time(iso: &str) -> String {
                 format!("{}h ago", secs / 3600)
             } else {
                 format!("{}d ago", secs / 86400)
+            };
+            // Dim timestamps older than 5 minutes.
+            if secs >= 300 {
+                s.dimmed().to_string()
+            } else {
+                s
             }
         }
         None => iso.to_owned(),
@@ -184,14 +211,41 @@ pub fn kv_block(pairs: &[(&str, String)]) -> String {
         .join("\n")
 }
 
-/// Render a simple table with header and data rows.
+/// Strip ANSI escape codes to get the visible display length of a string.
+fn visible_len(s: &str) -> usize {
+    let mut len = 0;
+    let mut in_escape = false;
+    for c in s.chars() {
+        if c == '\x1b' {
+            in_escape = true;
+        } else if in_escape {
+            if c == 'm' {
+                in_escape = false;
+            }
+        } else {
+            len += 1;
+        }
+    }
+    len
+}
+
+/// Pad a (potentially ANSI-colored) string to a given visible width.
+fn pad_cell(s: &str, width: usize) -> String {
+    let vlen = visible_len(s);
+    let padding = width.saturating_sub(vlen);
+    format!("{}{}", s, " ".repeat(padding))
+}
+
+/// Render a table with bold headers, dimmed separator, and ANSI-aware column alignment.
+/// Rows may contain pre-colored strings; alignment is based on visible width.
 pub fn table(headers: &[&str], rows: &[Vec<String>]) -> String {
     let col_count = headers.len();
+    // Compute column widths from visible (uncolored) content.
     let mut widths: Vec<usize> = headers.iter().map(|h| h.len()).collect();
     for row in rows {
         for (i, cell) in row.iter().enumerate() {
             if i < col_count {
-                widths[i] = widths[i].max(cell.len());
+                widths[i] = widths[i].max(visible_len(cell));
             }
         }
     }
@@ -199,13 +253,13 @@ pub fn table(headers: &[&str], rows: &[Vec<String>]) -> String {
     let header_line: String = headers
         .iter()
         .enumerate()
-        .map(|(i, h)| format!("{:width$}", h, width = widths[i]))
+        .map(|(i, h)| pad_cell(&h.bold().to_string(), widths[i]))
         .collect::<Vec<_>>()
         .join("  ");
 
     let sep: String = widths
         .iter()
-        .map(|w| "-".repeat(*w))
+        .map(|w| "─".repeat(*w).dimmed().to_string())
         .collect::<Vec<_>>()
         .join("  ");
 
@@ -215,7 +269,7 @@ pub fn table(headers: &[&str], rows: &[Vec<String>]) -> String {
             row.iter()
                 .enumerate()
                 .take(col_count)
-                .map(|(i, cell)| format!("{:width$}", cell, width = widths[i]))
+                .map(|(i, cell)| pad_cell(cell, widths[i]))
                 .collect::<Vec<_>>()
                 .join("  ")
         })
@@ -288,7 +342,7 @@ mod tests {
         let out = table(&headers, &rows);
         let lines: Vec<&str> = out.lines().collect();
         assert!(lines[0].contains("ENTITY") && lines[0].contains("STATE"));
-        assert!(lines[1].contains("---"));
+        assert!(lines[1].contains("─"));
         assert!(lines[2].contains("light.living_room"));
         assert!(lines[3].contains("switch.fan"));
     }
