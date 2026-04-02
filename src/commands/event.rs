@@ -36,16 +36,14 @@ pub async fn watch(
 ) -> Result<(), HaError> {
     out.print_message(&format!(
         "Watching events{} (Ctrl+C to stop)...",
-        event_type
-            .map(|t| format!(": {t}"))
-            .unwrap_or_default()
+        event_type.map(|t| format!(": {t}")).unwrap_or_default()
     ));
 
     api::events::watch_stream(client, event_type, |event| {
         if out.is_json() {
-            if let Ok(s) = serde_json::to_string_pretty(
-                &serde_json::json!({"ok": true, "data": event}),
-            ) {
+            if let Ok(s) =
+                serde_json::to_string_pretty(&serde_json::json!({"ok": true, "data": event}))
+            {
                 println!("{s}");
             }
         } else {
@@ -74,9 +72,10 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/api/events/my_event"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(
-                serde_json::json!({"message": "Event my_event fired."})
-            ))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"message": "Event my_event fired."})),
+            )
             .mount(&server)
             .await;
 

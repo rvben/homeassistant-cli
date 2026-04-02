@@ -55,7 +55,7 @@ pub async fn watch_stream(
             return Err(HaError::Api {
                 status,
                 message: resp.text().await.unwrap_or_default(),
-            })
+            });
         }
     }
 
@@ -69,7 +69,9 @@ pub async fn watch_stream(
         while let Some(pos) = buffer.find('\n') {
             let line = buffer[..pos].trim_end_matches('\r').to_owned();
             buffer.drain(..=pos);
-            if let Some(event) = parse_sse_data(&line) && !on_event(event) {
+            if let Some(event) = parse_sse_data(&line)
+                && !on_event(event)
+            {
                 return Ok(());
             }
         }
@@ -89,9 +91,10 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/api/events/my_event"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(
-                serde_json::json!({"message": "Event my_event fired."})
-            ))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"message": "Event my_event fired."})),
+            )
             .mount(&server)
             .await;
 
@@ -105,9 +108,10 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/api/events/custom"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(
-                serde_json::json!({"message": "Event custom fired."})
-            ))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"message": "Event custom fired."})),
+            )
             .mount(&server)
             .await;
 
@@ -119,7 +123,8 @@ mod tests {
 
     #[test]
     fn parse_sse_line_extracts_data() {
-        let line = r#"data: {"event_type":"state_changed","data":{},"time_fired":"2026-01-01T00:00:00Z"}"#;
+        let line =
+            r#"data: {"event_type":"state_changed","data":{},"time_fired":"2026-01-01T00:00:00Z"}"#;
         let event = parse_sse_data(line).unwrap();
         assert_eq!(event.event_type, "state_changed");
     }

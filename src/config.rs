@@ -35,9 +35,7 @@ impl Config {
             .filter(|s| !s.is_empty())
             .or_else(|| file_profile.url.filter(|s| !s.is_empty()))
             .ok_or_else(|| {
-                HaError::InvalidInput(
-                    "No url configured. Run 'ha init' or set HA_URL.".into(),
-                )
+                HaError::InvalidInput("No url configured. Run 'ha init' or set HA_URL.".into())
             })?;
 
         let token = std::env::var("HA_TOKEN")
@@ -45,9 +43,7 @@ impl Config {
             .filter(|s| !s.is_empty())
             .or_else(|| file_profile.token.filter(|s| !s.is_empty()))
             .ok_or_else(|| {
-                HaError::InvalidInput(
-                    "No token configured. Run 'ha init' or set HA_TOKEN.".into(),
-                )
+                HaError::InvalidInput("No token configured. Run 'ha init' or set HA_TOKEN.".into())
             })?;
 
         Ok(Self { url, token })
@@ -75,12 +71,9 @@ fn load_file_profile(profile_arg: Option<&str>) -> Result<RawProfile, HaError> {
         return Ok(raw.default);
     }
 
-    raw.profiles
-        .get(&profile_name)
-        .cloned()
-        .ok_or_else(|| {
-            HaError::InvalidInput(format!("Profile '{profile_name}' not found in config."))
-        })
+    raw.profiles.get(&profile_name).cloned().ok_or_else(|| {
+        HaError::InvalidInput(format!("Profile '{profile_name}' not found in config."))
+    })
 }
 
 pub struct ProfileSummary {
@@ -134,10 +127,8 @@ pub fn config_summary() -> ConfigSummary {
 /// Write or update a single profile in the config file.
 pub fn write_profile(path: &Path, profile: &str, url: &str, token: &str) -> Result<(), HaError> {
     let mut raw: RawConfig = if path.exists() {
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| HaError::Other(e.to_string()))?;
-        toml::from_str(&content)
-            .map_err(|e| HaError::Other(format!("Invalid config: {e}")))?
+        let content = std::fs::read_to_string(path).map_err(|e| HaError::Other(e.to_string()))?;
+        toml::from_str(&content).map_err(|e| HaError::Other(format!("Invalid config: {e}")))?
     } else {
         RawConfig::default()
     };
@@ -154,14 +145,11 @@ pub fn write_profile(path: &Path, profile: &str, url: &str, token: &str) -> Resu
     }
 
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| HaError::Other(e.to_string()))?;
+        std::fs::create_dir_all(parent).map_err(|e| HaError::Other(e.to_string()))?;
     }
 
-    let content = toml::to_string(&raw)
-        .map_err(|e| HaError::Other(e.to_string()))?;
-    std::fs::write(path, content)
-        .map_err(|e| HaError::Other(e.to_string()))?;
+    let content = toml::to_string(&raw).map_err(|e| HaError::Other(e.to_string()))?;
+    std::fs::write(path, content).map_err(|e| HaError::Other(e.to_string()))?;
 
     Ok(())
 }
@@ -221,7 +209,11 @@ mod tests {
     fn loads_default_profile_from_file() {
         let _lock = ProcessEnvLock::acquire().unwrap();
         let dir = TempDir::new().unwrap();
-        write_config(dir.path(), "[default]\nurl = \"http://ha.local:8123\"\ntoken = \"abc123\"\n").unwrap();
+        write_config(
+            dir.path(),
+            "[default]\nurl = \"http://ha.local:8123\"\ntoken = \"abc123\"\n",
+        )
+        .unwrap();
         let _env = EnvVarGuard::set("XDG_CONFIG_HOME", &dir.path().to_string_lossy());
         let _url = EnvVarGuard::unset("HA_URL");
         let _token = EnvVarGuard::unset("HA_TOKEN");
@@ -235,7 +227,11 @@ mod tests {
     fn env_vars_override_file() {
         let _lock = ProcessEnvLock::acquire().unwrap();
         let dir = TempDir::new().unwrap();
-        write_config(dir.path(), "[default]\nurl = \"http://ha.local:8123\"\ntoken = \"file-token\"\n").unwrap();
+        write_config(
+            dir.path(),
+            "[default]\nurl = \"http://ha.local:8123\"\ntoken = \"file-token\"\n",
+        )
+        .unwrap();
         let _env = EnvVarGuard::set("XDG_CONFIG_HOME", &dir.path().to_string_lossy());
         let _url = EnvVarGuard::set("HA_URL", "http://override:8123");
         let _token = EnvVarGuard::set("HA_TOKEN", "env-token");

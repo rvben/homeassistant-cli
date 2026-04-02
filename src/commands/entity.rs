@@ -72,17 +72,12 @@ pub async fn list(
     Ok(())
 }
 
-pub async fn watch(
-    out: &OutputConfig,
-    client: &HaClient,
-    entity_id: &str,
-) -> Result<(), HaError> {
+pub async fn watch(out: &OutputConfig, client: &HaClient, entity_id: &str) -> Result<(), HaError> {
     out.print_message(&format!("Watching {} (Ctrl+C to stop)...", entity_id));
 
     let entity_id = entity_id.to_owned();
     api::events::watch_stream(client, Some("state_changed"), |event| {
-        if let Ok(data) =
-            serde_json::from_value::<crate::api::StateChangedData>(event.data.clone())
+        if let Ok(data) = serde_json::from_value::<crate::api::StateChangedData>(event.data.clone())
             && data.entity_id == entity_id
         {
             if out.is_json() {

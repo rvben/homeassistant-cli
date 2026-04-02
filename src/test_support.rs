@@ -25,7 +25,10 @@ impl EnvVarGuard {
         // SAFETY: EnvVarGuard callers must hold ProcessEnvLock, which serializes
         // all env mutations across the test process, preventing concurrent access.
         unsafe { std::env::set_var(name, value) };
-        Self { name: name.to_owned(), original }
+        Self {
+            name: name.to_owned(),
+            original,
+        }
     }
 
     pub fn unset(name: &str) -> Self {
@@ -33,7 +36,10 @@ impl EnvVarGuard {
         // SAFETY: EnvVarGuard callers must hold ProcessEnvLock, which serializes
         // all env mutations across the test process, preventing concurrent access.
         unsafe { std::env::remove_var(name) };
-        Self { name: name.to_owned(), original }
+        Self {
+            name: name.to_owned(),
+            original,
+        }
     }
 }
 

@@ -1,7 +1,10 @@
 use crate::api::{EntityState, HaClient, HaError};
 
 pub async fn get_state(client: &HaClient, entity_id: &str) -> Result<EntityState, HaError> {
-    let resp = client.get(&format!("/api/states/{entity_id}")).send().await?;
+    let resp = client
+        .get(&format!("/api/states/{entity_id}"))
+        .send()
+        .await?;
     match resp.status().as_u16() {
         200 => Ok(resp.json().await?),
         401 | 403 => Err(HaError::Auth(format!("Unauthorized accessing {entity_id}"))),

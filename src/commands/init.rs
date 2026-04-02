@@ -204,12 +204,7 @@ where
             );
             let profile = chosen.trim().to_owned();
             if !existing_profiles.contains(&profile) {
-                let _ = writeln!(
-                    writer,
-                    "\n  {} Unknown profile '{}'.",
-                    sym_fail(),
-                    profile
-                );
+                let _ = writeln!(writer, "\n  {} Unknown profile '{}'.", sym_fail(), profile);
                 return Ok(());
             }
             (profile, true)
@@ -217,9 +212,8 @@ where
     };
 
     let (url, token) = if is_update {
-        let (cur_url, cur_token) =
-            config::read_profile_credentials(config_path, &profile_name)
-                .expect("update mode requires existing credentials");
+        let (cur_url, cur_token) = config::read_profile_credentials(config_path, &profile_name)
+            .expect("update mode requires existing credentials");
         let Some(url) = prompt_credential_update(reader, writer, "URL", &cur_url) else {
             let _ = writeln!(writer, "\nAborted.");
             return Ok(());
@@ -326,9 +320,9 @@ pub async fn init(profile_arg: Option<String>) {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use std::io::Cursor;
     use tempfile::TempDir;
-    use super::*;
 
     fn fake_path(dir: &TempDir) -> std::path::PathBuf {
         dir.path().join("config.toml")
@@ -342,9 +336,13 @@ mod tests {
         let mut reader = Cursor::new(input.as_ref());
         let mut writer = Vec::<u8>::new();
 
-        run_init(&mut reader, &mut writer, &path, None, |_url, _token| async {
-            Some("Home Assistant".to_string())
-        })
+        run_init(
+            &mut reader,
+            &mut writer,
+            &path,
+            None,
+            |_url, _token| async { Some("Home Assistant".to_string()) },
+        )
         .await
         .unwrap();
 
@@ -409,9 +407,13 @@ mod tests {
         let mut reader = Cursor::new(input.as_ref());
         let mut writer = Vec::<u8>::new();
 
-        run_init(&mut reader, &mut writer, &path, Some("prod"), |_, _| async {
-            Some("HA".into())
-        })
+        run_init(
+            &mut reader,
+            &mut writer,
+            &path,
+            Some("prod"),
+            |_, _| async { Some("HA".into()) },
+        )
         .await
         .unwrap();
 
@@ -452,9 +454,13 @@ mod tests {
         let mut reader = Cursor::new(input.as_ref());
         let mut writer = Vec::<u8>::new();
 
-        run_init(&mut reader, &mut writer, &path, Some("staging"), |_, _| async {
-            Some("HA".into())
-        })
+        run_init(
+            &mut reader,
+            &mut writer,
+            &path,
+            Some("staging"),
+            |_, _| async { Some("HA".into()) },
+        )
         .await
         .unwrap();
 

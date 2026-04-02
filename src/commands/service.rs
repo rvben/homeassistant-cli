@@ -21,7 +21,9 @@ pub async fn call(
         serde_json::json!({})
     };
 
-    if let Some(entity_id) = entity && let Some(obj) = body.as_object_mut() {
+    if let Some(entity_id) = entity
+        && let Some(obj) = body.as_object_mut()
+    {
         obj.insert(
             "entity_id".into(),
             serde_json::Value::String(entity_id.to_owned()),

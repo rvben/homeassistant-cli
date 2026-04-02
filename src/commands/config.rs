@@ -1,5 +1,5 @@
 use crate::config;
-use crate::output::{mask_credential, OutputConfig};
+use crate::output::{OutputConfig, mask_credential};
 
 pub fn show(out: &OutputConfig, profile_arg: Option<&str>) {
     let _ = profile_arg; // profile_arg reserved for future use; show always displays all profiles
@@ -42,10 +42,7 @@ pub fn show(out: &OutputConfig, profile_arg: Option<&str>) {
         }
         for p in &summary.profiles {
             println!("\n[{}]", p.name);
-            println!(
-                "  url   = {}",
-                p.url.as_deref().unwrap_or("(not set)")
-            );
+            println!("  url   = {}", p.url.as_deref().unwrap_or("(not set)"));
             println!(
                 "  token = {}",
                 p.token
@@ -54,9 +51,7 @@ pub fn show(out: &OutputConfig, profile_arg: Option<&str>) {
                     .unwrap_or_else(|| "(not set)".into())
             );
         }
-        if summary.env_url.is_some()
-            || summary.env_token.is_some()
-            || summary.env_profile.is_some()
+        if summary.env_url.is_some() || summary.env_token.is_some() || summary.env_profile.is_some()
         {
             println!("\nEnvironment overrides:");
             if let Some(v) = &summary.env_url {
