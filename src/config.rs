@@ -103,22 +103,21 @@ pub fn config_summary() -> ConfigSummary {
     let file_exists = config_file.exists();
     let mut profiles = Vec::new();
 
-    if file_exists {
-        if let Ok(content) = std::fs::read_to_string(&config_file) {
-            if let Ok(raw) = toml::from_str::<RawConfig>(&content) {
-                profiles.push(ProfileSummary {
-                    name: "default".into(),
-                    url: raw.default.url,
-                    token: raw.default.token,
-                });
-                for (name, p) in raw.profiles {
-                    profiles.push(ProfileSummary {
-                        name,
-                        url: p.url,
-                        token: p.token,
-                    });
-                }
-            }
+    if file_exists
+        && let Ok(content) = std::fs::read_to_string(&config_file)
+        && let Ok(raw) = toml::from_str::<RawConfig>(&content)
+    {
+        profiles.push(ProfileSummary {
+            name: "default".into(),
+            url: raw.default.url,
+            token: raw.default.token,
+        });
+        for (name, p) in raw.profiles {
+            profiles.push(ProfileSummary {
+                name,
+                url: p.url,
+                token: p.token,
+            });
         }
     }
 

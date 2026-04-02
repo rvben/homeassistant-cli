@@ -22,12 +22,16 @@ pub struct EnvVarGuard {
 impl EnvVarGuard {
     pub fn set(name: &str, value: &str) -> Self {
         let original = std::env::var(name).ok();
+        // SAFETY: EnvVarGuard callers must hold ProcessEnvLock, which serializes
+        // all env mutations across the test process, preventing concurrent access.
         unsafe { std::env::set_var(name, value) };
         Self { name: name.to_owned(), original }
     }
 
     pub fn unset(name: &str) -> Self {
         let original = std::env::var(name).ok();
+        // SAFETY: EnvVarGuard callers must hold ProcessEnvLock, which serializes
+        // all env mutations across the test process, preventing concurrent access.
         unsafe { std::env::remove_var(name) };
         Self { name: name.to_owned(), original }
     }
@@ -36,8 +40,16 @@ impl EnvVarGuard {
 impl Drop for EnvVarGuard {
     fn drop(&mut self) {
         match &self.original {
-            Some(v) => unsafe { std::env::set_var(&self.name, v) },
-            None => unsafe { std::env::remove_var(&self.name) },
+            Some(v) => {
+                // SAFETY: EnvVarGuard callers must hold ProcessEnvLock, which serializes
+                // all env mutations across the test process, preventing concurrent access.
+                unsafe { std::env::set_var(&self.name, v) }
+            }
+            None => {
+                // SAFETY: EnvVarGuard callers must hold ProcessEnvLock, which serializes
+                // all env mutations across the test process, preventing concurrent access.
+                unsafe { std::env::remove_var(&self.name) }
+            }
         }
     }
 }
