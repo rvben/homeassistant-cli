@@ -1,3 +1,5 @@
+use owo_colors::OwoColorize;
+
 use crate::api::{self, HaClient, HaError};
 use crate::output::{self, OutputConfig};
 
@@ -38,7 +40,31 @@ pub async fn call(
                 .expect("serialize"),
         );
     } else {
-        out.print_data(&format!("✔ Called {service}"));
+        let affected: Vec<String> = result
+            .as_array()
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|s| {
+                        let id = s.get("entity_id")?.as_str()?;
+                        let state = s.get("state")?.as_str().unwrap_or("?");
+                        Some(format!(
+                            "{}  {}",
+                            output::colored_entity_id(id),
+                            output::colored_state(state)
+                        ))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        if affected.is_empty() {
+            out.print_data(&format!("✔ Called {}", service.bold()));
+        } else {
+            out.print_data(&format!("✔ Called {}", service.bold()));
+            for line in &affected {
+                out.print_data(&format!("  {line}"));
+            }
+        }
     }
     Ok(())
 }

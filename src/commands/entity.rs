@@ -45,14 +45,23 @@ pub async fn list(
     out: &OutputConfig,
     client: &HaClient,
     domain: Option<&str>,
+    state_filter: Option<&str>,
+    limit: Option<usize>,
 ) -> Result<(), HaError> {
     let mut states = api::entities::list_states(client).await?;
 
     if let Some(d) = domain {
         states.retain(|s| s.entity_id.starts_with(&format!("{d}.")));
     }
+    if let Some(st) = state_filter {
+        states.retain(|s| s.state == st);
+    }
 
     states.sort_by(|a, b| a.entity_id.cmp(&b.entity_id));
+
+    if let Some(n) = limit {
+        states.truncate(n);
+    }
 
     if out.is_json() {
         out.print_data(
@@ -173,7 +182,7 @@ mod tests {
             .await;
 
         let client = HaClient::new(server.uri(), "tok");
-        let result = list(&json_out(), &client, Some("light")).await;
+        let result = list(&json_out(), &client, Some("light"), None, None).await;
         assert!(result.is_ok());
     }
 

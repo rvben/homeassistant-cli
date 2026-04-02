@@ -34,8 +34,12 @@ pub fn build_schema() -> serde_json::Value {
             },
             {
                 "name": "entity list",
-                "description": "List all entities, optionally filtered by domain",
-                "flags": [{"name": "--domain", "description": "Filter by domain (e.g. light, switch, sensor)"}],
+                "description": "List all entities, optionally filtered by domain, state, or count",
+                "flags": [
+                    {"name": "--domain", "description": "Filter by domain (e.g. light, switch, sensor)"},
+                    {"name": "--state", "description": "Filter by state value (e.g. on, off, unavailable)"},
+                    {"name": "--limit", "description": "Maximum number of entities to return"}
+                ],
                 "json_shape": {
                     "ok": true,
                     "data": [{"entity_id": "string", "state": "string", "attributes": "object", "last_changed": "string", "last_updated": "string"}]
@@ -106,6 +110,11 @@ pub fn build_schema() -> serde_json::Value {
                 "name": "schema",
                 "description": "Print this machine-readable schema. Use for agent introspection.",
                 "json_shape": "this document"
+            },
+            {
+                "name": "completions",
+                "description": "Generate shell completions",
+                "args": [{"name": "shell", "required": true, "values": ["bash", "zsh", "fish", "elvish", "powershell"]}]
             }
         ]
     })

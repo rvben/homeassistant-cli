@@ -5,7 +5,11 @@ Agent-friendly CLI for Home Assistant with JSON output, structured exit codes, a
 ## Installation
 
 ```bash
+# via cargo
 cargo install homeassistant-cli
+
+# via Homebrew
+brew install --formula https://raw.githubusercontent.com/rvben/homeassistant-cli/main/Formula/homeassistant-cli.rb
 ```
 
 ## Configuration
@@ -29,7 +33,7 @@ Environment variables override the config file:
 
 ```
 ha entity get <entity_id>
-ha entity list [--domain <domain>]
+ha entity list [--domain <domain>] [--state <state>] [--limit <n>]
 ha entity watch <entity_id>
 
 ha service call <domain.service> [--entity <id>] [--data <json>]
@@ -39,9 +43,23 @@ ha event fire <event_type> [--data <json>]
 ha event watch [<event_type>]
 
 ha schema
+ha completions <bash|zsh|fish|elvish|powershell>
 ha init [--profile <name>]
 ha config show
 ha config set <key> <value>
+```
+
+## Shell Completions
+
+```bash
+# zsh
+ha completions zsh > ~/.zsh/completions/_ha
+
+# bash
+ha completions bash > /etc/bash_completion.d/ha
+
+# fish
+ha completions fish > ~/.config/fish/completions/ha.fish
 ```
 
 ## Agent Use

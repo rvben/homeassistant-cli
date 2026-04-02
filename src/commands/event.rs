@@ -1,5 +1,7 @@
+use owo_colors::OwoColorize;
+
 use crate::api::{self, HaClient, HaError};
-use crate::output::OutputConfig;
+use crate::output::{self, OutputConfig};
 
 pub async fn fire(
     out: &OutputConfig,
@@ -47,8 +49,17 @@ pub async fn watch(
                 println!("{s}");
             }
         } else {
-            let time = event.time_fired.as_deref().unwrap_or("-");
-            println!("{} {}  {}", time, event.event_type, event.data);
+            let time = event
+                .time_fired
+                .as_deref()
+                .map(output::relative_time)
+                .unwrap_or_else(|| "-".to_owned());
+            let data_str = if event.data.is_null() || event.data == serde_json::json!({}) {
+                String::new()
+            } else {
+                format!("  {}", event.data.to_string().dimmed())
+            };
+            println!("{}  {}{}", time.dimmed(), event.event_type.bold(), data_str);
         }
         true
     })

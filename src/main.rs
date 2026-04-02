@@ -65,10 +65,16 @@ enum Command {
 enum EntityCommand {
     /// Get the current state of an entity
     Get { entity_id: String },
-    /// List all entities, optionally filtered by domain
+    /// List all entities, optionally filtered by domain, state, or count
     List {
         #[arg(long)]
         domain: Option<String>,
+        /// Filter by state value (e.g. on, off, unavailable)
+        #[arg(long)]
+        state: Option<String>,
+        /// Maximum number of results to show
+        #[arg(long)]
+        limit: Option<usize>,
     },
     /// Stream state changes for an entity
     Watch { entity_id: String },
@@ -156,8 +162,19 @@ async fn main() {
                     EntityCommand::Get { entity_id } => {
                         commands::entity::get(&out, &client, &entity_id).await
                     }
-                    EntityCommand::List { domain } => {
-                        commands::entity::list(&out, &client, domain.as_deref()).await
+                    EntityCommand::List {
+                        domain,
+                        state,
+                        limit,
+                    } => {
+                        commands::entity::list(
+                            &out,
+                            &client,
+                            domain.as_deref(),
+                            state.as_deref(),
+                            limit,
+                        )
+                        .await
                     }
                     EntityCommand::Watch { entity_id } => {
                         commands::entity::watch(&out, &client, &entity_id).await
