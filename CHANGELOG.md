@@ -9,6 +9,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+
+## [0.1.7](https://github.com/rvben/homeassistant-cli/compare/v0.1.6...v0.1.7) - 2026-04-02
+
+### Added
+
+- add PyPI distribution via maturin ([6a49bdd](https://github.com/rvben/homeassistant-cli/commit/6a49bddba90ac926ba1099d6f47c44a039343a50))
+
 ## [0.1.6](https://github.com/rvben/homeassistant-cli/compare/v0.1.5...v0.1.6) - 2026-04-02
 
 ### Added
