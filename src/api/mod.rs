@@ -25,6 +25,21 @@ pub enum HaError {
     Other(String),
 }
 
+impl HaError {
+    /// Machine-readable error code for JSON error envelopes.
+    pub fn error_code(&self) -> &str {
+        match self {
+            HaError::Auth(_) => "HA_AUTH_ERROR",
+            HaError::NotFound(_) => "HA_NOT_FOUND",
+            HaError::InvalidInput(_) => "HA_INVALID_INPUT",
+            HaError::Connection(_) => "HA_CONNECTION_ERROR",
+            HaError::Api { .. } => "HA_API_ERROR",
+            HaError::Http(_) => "HA_HTTP_ERROR",
+            HaError::Other(_) => "HA_ERROR",
+        }
+    }
+}
+
 impl fmt::Display for HaError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -127,6 +142,16 @@ impl HaClient {
 mod tests {
     use super::*;
     use std::error::Error;
+
+    #[test]
+    fn error_code_returns_expected_strings() {
+        assert_eq!(HaError::Auth("x".into()).error_code(), "HA_AUTH_ERROR");
+        assert_eq!(HaError::NotFound("x".into()).error_code(), "HA_NOT_FOUND");
+        assert_eq!(HaError::InvalidInput("x".into()).error_code(), "HA_INVALID_INPUT");
+        assert_eq!(HaError::Connection("x".into()).error_code(), "HA_CONNECTION_ERROR");
+        assert_eq!(HaError::Api { status: 500, message: "x".into() }.error_code(), "HA_API_ERROR");
+        assert_eq!(HaError::Other("x".into()).error_code(), "HA_ERROR");
+    }
 
     #[test]
     fn auth_error_display_includes_guidance() {

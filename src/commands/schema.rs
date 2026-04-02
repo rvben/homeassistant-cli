@@ -171,5 +171,6 @@ mod tests {
             .collect();
         assert!(flag_names.contains(&"--output"));
         assert!(flag_names.contains(&"--profile"));
+        assert!(flag_names.contains(&"--quiet"));
     }
 }

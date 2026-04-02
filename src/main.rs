@@ -142,56 +142,41 @@ async fn main() {
             };
             let client = api::HaClient::new(&cfg.url, &cfg.token);
 
-            match command {
+            let result = match command {
                 Command::Entity(cmd) => match cmd {
                     EntityCommand::Get { entity_id } => {
-                        if let Err(e) = commands::entity::get(&out, &client, &entity_id).await {
-                            eprintln!("{e}");
-                            std::process::exit(exit_codes::for_error(&e));
-                        }
+                        commands::entity::get(&out, &client, &entity_id).await
                     }
                     EntityCommand::List { domain } => {
-                        if let Err(e) = commands::entity::list(&out, &client, domain.as_deref()).await {
-                            eprintln!("{e}");
-                            std::process::exit(exit_codes::for_error(&e));
-                        }
+                        commands::entity::list(&out, &client, domain.as_deref()).await
                     }
                     EntityCommand::Watch { entity_id } => {
-                        if let Err(e) = commands::entity::watch(&out, &client, &entity_id).await {
-                            eprintln!("{e}");
-                            std::process::exit(exit_codes::for_error(&e));
-                        }
+                        commands::entity::watch(&out, &client, &entity_id).await
                     }
                 },
                 Command::Service(cmd) => match cmd {
                     ServiceCommand::Call { service, entity, data } => {
-                        if let Err(e) = commands::service::call(&out, &client, &service, entity.as_deref(), data.as_deref()).await {
-                            eprintln!("{e}");
-                            std::process::exit(exit_codes::for_error(&e));
-                        }
+                        commands::service::call(&out, &client, &service, entity.as_deref(), data.as_deref()).await
                     }
                     ServiceCommand::List { domain } => {
-                        if let Err(e) = commands::service::list(&out, &client, domain.as_deref()).await {
-                            eprintln!("{e}");
-                            std::process::exit(exit_codes::for_error(&e));
-                        }
+                        commands::service::list(&out, &client, domain.as_deref()).await
                     }
                 },
                 Command::Event(cmd) => match cmd {
                     EventCommand::Fire { event_type, data } => {
-                        if let Err(e) = commands::event::fire(&out, &client, &event_type, data.as_deref()).await {
-                            eprintln!("{e}");
-                            std::process::exit(exit_codes::for_error(&e));
-                        }
+                        commands::event::fire(&out, &client, &event_type, data.as_deref()).await
                     }
                     EventCommand::Watch { event_type } => {
-                        if let Err(e) = commands::event::watch(&out, &client, event_type.as_deref()).await {
-                            eprintln!("{e}");
-                            std::process::exit(exit_codes::for_error(&e));
-                        }
+                        commands::event::watch(&out, &client, event_type.as_deref()).await
                     }
                 },
                 Command::Init { .. } | Command::Schema | Command::Config(_) => unreachable!(),
+            };
+
+            if let Err(e) = result {
+                let code = exit_codes::for_error(&e);
+                out.print_error(&e);
+                std::process::exit(code);
             }
         }
     }

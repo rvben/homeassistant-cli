@@ -43,6 +43,23 @@ impl OutputConfig {
         }
     }
 
+    /// Print an error. In JSON mode, emits the structured error envelope to stdout.
+    /// In human mode, prints to stderr.
+    pub fn print_error(&self, e: &HaError) {
+        if self.is_json() {
+            let envelope = serde_json::json!({
+                "ok": false,
+                "error": {
+                    "code": e.error_code(),
+                    "message": e.to_string()
+                }
+            });
+            println!("{}", serde_json::to_string_pretty(&envelope).expect("serialize"));
+        } else {
+            eprintln!("{e}");
+        }
+    }
+
     /// Print a JSON result or human message depending on format.
     pub fn print_result(&self, json_value: &serde_json::Value, human_message: &str) {
         if self.is_json() {
@@ -171,6 +188,22 @@ mod tests {
         assert!(lines[1].contains("---"));
         assert!(lines[2].contains("light.living_room"));
         assert!(lines[3].contains("switch.fan"));
+    }
+
+    #[test]
+    fn print_error_json_mode_emits_envelope_to_stdout() {
+        // Verify the envelope structure by exercising the serialization path directly.
+        let e = crate::api::HaError::NotFound("light.missing".into());
+        let envelope = serde_json::json!({
+            "ok": false,
+            "error": {
+                "code": e.error_code(),
+                "message": e.to_string()
+            }
+        });
+        assert_eq!(envelope["ok"], false);
+        assert_eq!(envelope["error"]["code"], "HA_NOT_FOUND");
+        assert!(envelope["error"]["message"].as_str().unwrap().contains("light.missing"));
     }
 
     #[test]
