@@ -236,11 +236,58 @@ fn pad_cell(s: &str, width: usize) -> String {
     format!("{}{}", s, " ".repeat(padding))
 }
 
+/// Return the current terminal width, or a sensible default.
+fn terminal_width() -> usize {
+    use std::io::IsTerminal;
+    if !std::io::stdout().is_terminal() {
+        return usize::MAX; // piped — no truncation needed
+    }
+    terminal_size::terminal_size()
+        .map(|(terminal_size::Width(w), _)| w as usize)
+        .unwrap_or(120)
+}
+
+/// Truncate a string (ignoring ANSI) to `max_visible` chars, appending `…` if cut.
+fn truncate_cell(s: &str, max_visible: usize) -> String {
+    if max_visible == 0 {
+        return String::new();
+    }
+    if visible_len(s) <= max_visible {
+        return s.to_owned();
+    }
+    // Re-build the string char by char, keeping ANSI escapes intact.
+    let mut out = String::new();
+    let mut visible = 0;
+    let mut in_escape = false;
+    let target = max_visible.saturating_sub(1); // reserve one for '…'
+    for c in s.chars() {
+        if c == '\x1b' {
+            in_escape = true;
+            out.push(c);
+        } else if in_escape {
+            out.push(c);
+            if c == 'm' {
+                in_escape = false;
+            }
+        } else if visible < target {
+            out.push(c);
+            visible += 1;
+        } else {
+            break;
+        }
+    }
+    // Reset any open ANSI sequence before appending '…'.
+    out.push_str("\x1b[0m");
+    out.push('…');
+    out
+}
+
 /// Render a table with bold headers, dimmed separator, and ANSI-aware column alignment.
 /// Rows may contain pre-colored strings; alignment is based on visible width.
+/// Automatically shrinks the widest column(s) to fit within the terminal width.
 pub fn table(headers: &[&str], rows: &[Vec<String>]) -> String {
     let col_count = headers.len();
-    // Compute column widths from visible (uncolored) content.
+    // Compute natural column widths from visible (uncolored) content.
     let mut widths: Vec<usize> = headers.iter().map(|h| h.len()).collect();
     for row in rows {
         for (i, cell) in row.iter().enumerate() {
@@ -250,10 +297,63 @@ pub fn table(headers: &[&str], rows: &[Vec<String>]) -> String {
         }
     }
 
+    // Fit widths to terminal: separator between cols is 2 spaces.
+    let term_w = terminal_width();
+    let separators = col_count.saturating_sub(1) * 2;
+    let total: usize = widths.iter().sum::<usize>() + separators;
+    if total > term_w {
+        let budget = term_w.saturating_sub(separators);
+        // Shrink the widest columns first until everything fits.
+        loop {
+            let current: usize = widths.iter().sum();
+            if current <= budget {
+                break;
+            }
+            let max_w = *widths.iter().max().unwrap_or(&0);
+            if max_w == 0 {
+                break;
+            }
+            // Find the second-largest width to know how much headroom to shrink.
+            let second = widths.iter().filter(|&&w| w < max_w).copied().max().unwrap_or(0);
+            let n_max = widths.iter().filter(|&&w| w == max_w).count();
+            let excess = current - budget;
+            // How much we can shrink all max-width cols before they meet the next level.
+            let headroom = (max_w - second) * n_max;
+            if headroom >= excess {
+                let cut = excess.div_ceil(n_max);
+                for w in &mut widths {
+                    if *w == max_w {
+                        *w = max_w.saturating_sub(cut);
+                    }
+                }
+            } else {
+                for w in &mut widths {
+                    if *w == max_w {
+                        *w = second;
+                    }
+                }
+            }
+            // Safety: don't shrink below a minimum of 4 chars.
+            if widths.iter().all(|&w| w <= 4) {
+                widths.fill(4);
+                break;
+            }
+        }
+        // Enforce per-column minimum so we always have something legible.
+        let min_col = budget / col_count;
+        for w in &mut widths {
+            *w = (*w).max(min_col.min(4));
+        }
+    }
+
+    // Render headers.
     let header_line: String = headers
         .iter()
         .enumerate()
-        .map(|(i, h)| pad_cell(&h.bold().to_string(), widths[i]))
+        .map(|(i, h)| {
+            let truncated = truncate_cell(h, widths[i]);
+            pad_cell(&truncated.bold().to_string(), widths[i])
+        })
         .collect::<Vec<_>>()
         .join("  ");
 
@@ -269,7 +369,10 @@ pub fn table(headers: &[&str], rows: &[Vec<String>]) -> String {
             row.iter()
                 .enumerate()
                 .take(col_count)
-                .map(|(i, cell)| pad_cell(cell, widths[i]))
+                .map(|(i, cell)| {
+                    let truncated = truncate_cell(cell, widths[i]);
+                    pad_cell(&truncated, widths[i])
+                })
                 .collect::<Vec<_>>()
                 .join("  ")
         })
@@ -330,6 +433,18 @@ mod tests {
         let v1_pos = lines[0].find("light.x").unwrap();
         let v2_pos = lines[1].find("on").unwrap();
         assert_eq!(v1_pos, v2_pos);
+    }
+
+    #[test]
+    fn truncate_cell_shortens_plain_string() {
+        let result = truncate_cell("hello world", 7);
+        assert!(visible_len(&result) <= 7);
+        assert!(result.contains('…'));
+    }
+
+    #[test]
+    fn truncate_cell_leaves_short_string_intact() {
+        assert_eq!(truncate_cell("hi", 10), "hi");
     }
 
     #[test]

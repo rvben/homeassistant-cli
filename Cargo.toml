@@ -19,6 +19,7 @@ serde_json = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
 toml = "0.8"
 owo-colors = "4"
+terminal_size = "0.4"
 dirs = "6"
 futures-util = "0.3"
 
