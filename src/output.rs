@@ -76,6 +76,76 @@ impl OutputConfig {
     }
 }
 
+/// Format an ISO 8601 timestamp as a human-friendly relative time ("2m ago").
+/// Falls back to the raw string if parsing fails.
+pub fn relative_time(iso: &str) -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+
+    match parse_unix_secs(iso) {
+        Some(ts) => {
+            let secs = now.saturating_sub(ts);
+            if secs < 60 {
+                format!("{secs}s ago")
+            } else if secs < 3600 {
+                format!("{}m ago", secs / 60)
+            } else if secs < 86400 {
+                format!("{}h ago", secs / 3600)
+            } else {
+                format!("{}d ago", secs / 86400)
+            }
+        }
+        None => iso.to_owned(),
+    }
+}
+
+/// Parse an ISO 8601 / RFC 3339 timestamp to Unix seconds.
+/// Handles `YYYY-MM-DDTHH:MM:SS[.frac][+HH:MM|Z]`.
+fn parse_unix_secs(s: &str) -> Option<u64> {
+    if s.len() < 19 {
+        return None;
+    }
+    let year: i64 = s.get(0..4)?.parse().ok()?;
+    let month: i64 = s.get(5..7)?.parse().ok()?;
+    let day: i64 = s.get(8..10)?.parse().ok()?;
+    let hour: i64 = s.get(11..13)?.parse().ok()?;
+    let min: i64 = s.get(14..16)?.parse().ok()?;
+    let sec: i64 = s.get(17..19)?.parse().ok()?;
+
+    // Skip fractional seconds, then parse timezone offset.
+    let rest = s.get(19..)?;
+    let rest = if rest.starts_with('.') {
+        let end = rest.find(['+', '-', 'Z']).unwrap_or(rest.len());
+        &rest[end..]
+    } else {
+        rest
+    };
+    let tz_secs: i64 = if rest.is_empty() || rest == "Z" {
+        0
+    } else {
+        let sign: i64 = if rest.starts_with('-') { -1 } else { 1 };
+        let tz = rest.get(1..)?;
+        let h: i64 = tz.get(0..2)?.parse().ok()?;
+        let m: i64 = tz.get(3..5)?.parse().ok()?;
+        sign * (h * 3600 + m * 60)
+    };
+
+    // Convert calendar date to days since Unix epoch using Hinnant's algorithm.
+    let y = year - i64::from(month <= 2);
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let doy = (153 * (month + if month > 2 { -3 } else { 9 }) + 2) / 5 + day - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let days = era * 146_097 + doe - 719_468;
+
+    let unix = days * 86_400 + hour * 3_600 + min * 60 + sec - tz_secs;
+    u64::try_from(unix).ok()
+}
+
 pub mod exit_codes {
     use super::HaError;
 
@@ -159,6 +229,33 @@ pub fn table(headers: &[&str], rows: &[Vec<String>]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parse_unix_secs_handles_utc_z() {
+        // 1970-01-01T00:00:00Z == 0
+        assert_eq!(parse_unix_secs("1970-01-01T00:00:00Z"), Some(0));
+    }
+
+    #[test]
+    fn parse_unix_secs_handles_offset() {
+        // 1970-01-01T01:00:00+01:00 == 0
+        assert_eq!(parse_unix_secs("1970-01-01T01:00:00+01:00"), Some(0));
+    }
+
+    #[test]
+    fn parse_unix_secs_handles_fractional_seconds() {
+        assert_eq!(parse_unix_secs("1970-01-01T00:00:01.999999+00:00"), Some(1));
+    }
+
+    #[test]
+    fn parse_unix_secs_rejects_short_input() {
+        assert_eq!(parse_unix_secs("2026-01"), None);
+    }
+
+    #[test]
+    fn relative_time_falls_back_on_invalid_input() {
+        assert_eq!(relative_time("not-a-date"), "not-a-date");
+    }
 
     #[test]
     fn mask_credential_masks_long_values() {

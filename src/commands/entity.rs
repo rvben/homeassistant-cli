@@ -65,9 +65,15 @@ pub async fn list(
     } else {
         let rows: Vec<Vec<String>> = states
             .iter()
-            .map(|s| vec![s.entity_id.clone(), s.state.clone(), s.last_updated.clone()])
+            .map(|s| {
+                vec![
+                    s.entity_id.clone(),
+                    s.state.clone(),
+                    output::relative_time(&s.last_updated),
+                ]
+            })
             .collect();
-        out.print_data(&output::table(&["ENTITY", "STATE", "LAST UPDATED"], &rows));
+        out.print_data(&output::table(&["ENTITY", "STATE", "UPDATED"], &rows));
     }
     Ok(())
 }
@@ -98,7 +104,7 @@ pub async fn watch(out: &OutputConfig, client: &HaClient, entity_id: &str) -> Re
                     status_sym,
                     new.entity_id,
                     new.state.bold(),
-                    new.last_updated.dimmed()
+                    output::relative_time(&new.last_updated).dimmed()
                 );
             }
         }
