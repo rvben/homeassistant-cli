@@ -314,7 +314,12 @@ pub fn table(headers: &[&str], rows: &[Vec<String>]) -> String {
                 break;
             }
             // Find the second-largest width to know how much headroom to shrink.
-            let second = widths.iter().filter(|&&w| w < max_w).copied().max().unwrap_or(0);
+            let second = widths
+                .iter()
+                .filter(|&&w| w < max_w)
+                .copied()
+                .max()
+                .unwrap_or(0);
             let n_max = widths.iter().filter(|&&w| w == max_w).count();
             let excess = current - budget;
             // How much we can shrink all max-width cols before they meet the next level.
