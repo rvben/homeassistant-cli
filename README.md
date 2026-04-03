@@ -1,6 +1,7 @@
 [![CI](https://github.com/rvben/homeassistant-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/rvben/homeassistant-cli/actions/workflows/ci.yml)
 [![Crates.io](https://img.shields.io/crates/v/homeassistant-cli.svg)](https://crates.io/crates/homeassistant-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![codecov](https://codecov.io/gh/rvben/homeassistant-cli/graph/badge.svg)](https://codecov.io/gh/rvben/homeassistant-cli)
 
 # homeassistant-cli
 
