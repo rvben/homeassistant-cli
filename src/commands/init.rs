@@ -236,8 +236,8 @@ where
         let token_url = format!("{}/profile/security", url.trim_end_matches('/'));
         let _ = writeln!(
             writer,
-            "  {} Create a token at: {}",
-            sym_ok(),
+            "  {} {} → Long-Lived Access Tokens → Create Token",
+            sym_dim("→"),
             sym_dim(&token_url)
         );
         let Some(token) = prompt_required(
@@ -275,20 +275,46 @@ where
 
     config::write_profile(config_path, &profile_name, &url, &token)?;
 
-    let run_cmd = if profile_name == "default" {
-        "ha entity list".to_owned()
+    let pfx = if profile_name == "default" {
+        "ha".to_owned()
     } else {
-        format!("ha --profile {} entity list", profile_name)
+        format!("ha --profile {}", profile_name)
     };
 
     let _ = writeln!(writer, "\n{SEP}");
     let _ = writeln!(
         writer,
-        "  {} Config saved to {}",
+        "  {} Configuration saved to {}",
         sym_ok(),
-        sym_dim(&config_path.display().to_string())
+        config_path.display()
     );
-    let _ = writeln!(writer, "  Run: {}", run_cmd.bold());
+    let _ = writeln!(writer);
+    let _ = writeln!(writer, "  {}:", "Next steps".bold());
+    let _ = writeln!(
+        writer,
+        "    {} entity list          {}",
+        pfx,
+        sym_dim("# list all entities")
+    );
+    let _ = writeln!(
+        writer,
+        "    {} service list         {}",
+        pfx,
+        sym_dim("# list available services")
+    );
+    let _ = writeln!(
+        writer,
+        "    {} event list           {}",
+        pfx,
+        sym_dim("# list event types")
+    );
+    let _ = writeln!(
+        writer,
+        "    {} completions zsh      {}",
+        pfx,
+        sym_dim("# shell completions")
+    );
+    let _ = writeln!(writer);
     let _ = writer.flush();
 
     Ok(())
@@ -358,6 +384,18 @@ mod tests {
         assert!(saved.contains("mytoken"));
         let output = String::from_utf8_lossy(&writer);
         assert!(output.contains("http://ha.local:8123/profile/security"));
+        assert!(
+            output.contains("Long-Lived Access Tokens"),
+            "should show token creation instructions"
+        );
+        assert!(
+            output.contains("Configuration saved to"),
+            "should show config saved confirmation"
+        );
+        assert!(
+            output.contains("Next steps"),
+            "should show next steps block"
+        );
     }
 
     #[tokio::test]
@@ -475,6 +513,10 @@ mod tests {
 
         let output = String::from_utf8_lossy(&writer);
         assert!(output.contains("--profile staging"));
+        assert!(output.contains("Next steps"));
+        assert!(output.contains("entity list"));
+        assert!(output.contains("service list"));
+        assert!(output.contains("completions zsh"));
     }
 
     #[tokio::test]
