@@ -16,6 +16,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+
+## [0.1.14](https://github.com/rvben/homeassistant-cli/compare/v0.1.13...v0.1.14) - 2026-04-03
+
+### Added
+
+- **init**: improve token URL hint, add next steps block ([0a2cb42](https://github.com/rvben/homeassistant-cli/commit/0a2cb422e1fd12b1848bf112595d2ad4075daa39))
+
 ## [0.1.13](https://github.com/rvben/homeassistant-cli/compare/v0.1.12...v0.1.13) - 2026-04-03
 
 ## [0.1.12](https://github.com/rvben/homeassistant-cli/compare/v0.1.11...v0.1.12) - 2026-04-03
