@@ -17,6 +17,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+
+## [0.2.0](https://github.com/rvben/homeassistant-cli/compare/v0.1.14...v0.2.0) - 2026-04-23
+
+### Added
+
+- **registry**: add ha registry entity list and remove subcommands ([9a3ae67](https://github.com/rvben/homeassistant-cli/commit/9a3ae67808b966b88eec7ba9b404edeb8584cf59))
+
 ## [0.1.14](https://github.com/rvben/homeassistant-cli/compare/v0.1.13...v0.1.14) - 2026-04-03
 
 ### Added
