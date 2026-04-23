@@ -181,6 +181,8 @@ pub mod exit_codes {
     pub const CONFIG_ERROR: i32 = 2;
     pub const NOT_FOUND: i32 = 3;
     pub const CONNECTION_ERROR: i32 = 4;
+    /// Batch operation where some items succeeded and some failed (e.g. `registry entity remove`).
+    pub const PARTIAL_FAILURE: i32 = 5;
 
     pub fn for_error(e: &HaError) -> i32 {
         match e {

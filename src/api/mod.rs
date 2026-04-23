@@ -2,6 +2,7 @@ pub mod entities;
 pub mod events;
 pub mod services;
 pub mod types;
+pub mod websocket;
 
 pub use types::*;
 

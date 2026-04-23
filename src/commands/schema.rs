@@ -14,7 +14,8 @@ pub fn build_schema() -> serde_json::Value {
             "1": "general error",
             "2": "auth/config error",
             "3": "not found",
-            "4": "connection error"
+            "4": "connection error",
+            "5": "partial failure (some items in a batch succeeded, some failed)"
         },
         "commands": [
             {
@@ -90,6 +91,44 @@ pub fn build_schema() -> serde_json::Value {
                 }
             },
             {
+                "name": "registry entity list",
+                "description": "List registered entities from the Home Assistant entity registry (WebSocket API)",
+                "flags": [
+                    {"name": "--integration", "description": "Filter by integration/platform (e.g. hue, zha)"},
+                    {"name": "--domain", "description": "Filter by domain (e.g. light, switch)"}
+                ],
+                "json_shape": {
+                    "ok": true,
+                    "data": [{
+                        "entity_id": "string",
+                        "platform": "string",
+                        "name": "string | null",
+                        "original_name": "string | null",
+                        "disabled_by": "string | null",
+                        "area_id": "string | null",
+                        "device_id": "string | null"
+                    }]
+                }
+            },
+            {
+                "name": "registry entity remove",
+                "description": "Permanently remove entities from the entity registry. --dry-run never connects. In a TTY, requires --yes to bypass the confirmation prompt.",
+                "args": [{"name": "entity_ids", "required": true, "description": "One or more entity IDs to remove"}],
+                "flags": [
+                    {"name": "--dry-run", "description": "Print what would be removed without connecting to Home Assistant"},
+                    {"name": "--yes", "description": "Skip the interactive confirmation prompt"}
+                ],
+                "exit_codes": {"5": "one or more removals failed; see per-entity status in data[]"},
+                "json_shape": {
+                    "ok": "bool (true only when every removal succeeded)",
+                    "data": [{
+                        "entity_id": "string",
+                        "status": "removed | not_found | error | dry_run",
+                        "error": "string (only present when status is not_found or error)"
+                    }]
+                }
+            },
+            {
                 "name": "init",
                 "description": "Set up credentials interactively. When stdout is not a TTY, prints JSON setup instructions.",
                 "flags": [{"name": "--profile", "description": "Profile to create or update"}]
@@ -152,6 +191,8 @@ mod tests {
         assert!(names.contains(&"service list"));
         assert!(names.contains(&"event fire"));
         assert!(names.contains(&"event watch"));
+        assert!(names.contains(&"registry entity list"));
+        assert!(names.contains(&"registry entity remove"));
         assert!(names.contains(&"schema"));
         assert!(names.contains(&"init"));
         assert!(names.contains(&"config show"));

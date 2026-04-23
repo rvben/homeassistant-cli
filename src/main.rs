@@ -41,6 +41,10 @@ enum Command {
     #[command(subcommand, arg_required_else_help = true)]
     Event(EventCommand),
 
+    /// Manage the Home Assistant entity/device/area registry (WebSocket API)
+    #[command(subcommand, arg_required_else_help = true)]
+    Registry(RegistryCommand),
+
     /// Set up credentials interactively (or print JSON schema for agents)
     Init {
         #[arg(long)]
@@ -122,6 +126,38 @@ enum ConfigCommand {
     Show,
     /// Set a config value
     Set { key: String, value: String },
+}
+
+#[derive(Subcommand)]
+enum RegistryCommand {
+    /// Entity registry operations
+    #[command(subcommand, arg_required_else_help = true)]
+    Entity(RegistryEntityCommand),
+}
+
+#[derive(Subcommand)]
+enum RegistryEntityCommand {
+    /// List registered entities
+    List {
+        /// Filter by integration/platform (e.g. hue, zha)
+        #[arg(long)]
+        integration: Option<String>,
+        /// Filter by domain (e.g. light, switch)
+        #[arg(long)]
+        domain: Option<String>,
+    },
+    /// Remove entities from the registry. Requires --yes in interactive mode.
+    Remove {
+        /// Entity IDs to remove (one or more)
+        #[arg(required = true)]
+        entity_ids: Vec<String>,
+        /// Print what would be removed without connecting to Home Assistant
+        #[arg(long)]
+        dry_run: bool,
+        /// Skip the interactive confirmation prompt
+        #[arg(long)]
+        yes: bool,
+    },
 }
 
 #[tokio::main]
@@ -206,6 +242,38 @@ async fn main() {
                     EventCommand::Watch { event_type } => {
                         commands::event::watch(&out, &client, event_type.as_deref()).await
                     }
+                },
+                Command::Registry(cmd) => match cmd {
+                    RegistryCommand::Entity(sub) => match sub {
+                        RegistryEntityCommand::List {
+                            integration,
+                            domain,
+                        } => {
+                            commands::registry::entity_list(
+                                &out,
+                                &cfg.url,
+                                &cfg.token,
+                                integration.as_deref(),
+                                domain.as_deref(),
+                            )
+                            .await
+                        }
+                        RegistryEntityCommand::Remove {
+                            entity_ids,
+                            dry_run,
+                            yes,
+                        } => {
+                            commands::registry::entity_remove(
+                                &out,
+                                &cfg.url,
+                                &cfg.token,
+                                &entity_ids,
+                                dry_run,
+                                yes,
+                            )
+                            .await
+                        }
+                    },
                 },
                 Command::Init { .. }
                 | Command::Schema
