@@ -1,3 +1,5 @@
+use std::io::IsTerminal;
+
 use owo_colors::OwoColorize;
 
 use crate::api::{self, HaClient, HaError};
@@ -8,7 +10,31 @@ pub async fn fire(
     client: &HaClient,
     event_type: &str,
     data: Option<&str>,
+    yes: bool,
 ) -> Result<(), HaError> {
+    // Firing events modifies HA state. Without a TTY and without --yes or JSON mode: refuse.
+    let is_tty = std::io::stdin().is_terminal();
+    if !yes && !out.is_json() {
+        if is_tty {
+            eprint!("Fire event '{event_type}'? [y/N] ");
+            use std::io::Write;
+            let _ = std::io::stderr().flush();
+            let mut input = String::new();
+            std::io::stdin()
+                .read_line(&mut input)
+                .map_err(|e| HaError::Other(format!("failed to read stdin: {e}")))?;
+            let answer = input.trim().to_ascii_lowercase();
+            if answer != "y" && answer != "yes" {
+                return Err(HaError::InvalidInput("aborted by user".into()));
+            }
+        } else {
+            // Non-interactive, no --yes: refuse per spec Principle 4.
+            return Err(HaError::ConfirmationRequired(format!(
+                "Firing event '{event_type}' requires confirmation"
+            )));
+        }
+    }
+
     let body = if let Some(d) = data {
         Some(
             serde_json::from_str::<serde_json::Value>(d)
@@ -26,7 +52,7 @@ pub async fn fire(
                 .expect("serialize"),
         );
     } else {
-        out.print_data(&format!("✔ Fired event: {event_type}"));
+        out.print_data(&format!("Fired event: {event_type}"));
     }
     Ok(())
 }
@@ -91,7 +117,8 @@ mod tests {
             .await;
 
         let client = HaClient::new(server.uri(), "tok");
-        let result = fire(&json_out(), &client, "my_event", None).await;
+        // yes=true to skip confirmation in non-TTY test environment
+        let result = fire(&json_out(), &client, "my_event", None, true).await;
         assert!(result.is_ok());
     }
 
@@ -99,7 +126,22 @@ mod tests {
     async fn fire_with_invalid_json_returns_error() {
         let server = MockServer::start().await;
         let client = HaClient::new(server.uri(), "tok");
-        let result = fire(&json_out(), &client, "my_event", Some("{invalid}")).await;
+        // yes=true; invalid JSON still fails after confirmation check
+        let result = fire(&json_out(), &client, "my_event", Some("{invalid}"), true).await;
         assert!(matches!(result, Err(crate::api::HaError::InvalidInput(_))));
+    }
+
+    #[tokio::test]
+    async fn fire_without_yes_in_non_tty_text_mode_requires_confirmation() {
+        use crate::output::OutputFormat;
+        // In text mode without --yes and without a TTY, must return ConfirmationRequired.
+        let text_out = OutputConfig::new(Some(OutputFormat::Text), false);
+        let server = MockServer::start().await;
+        let client = HaClient::new(server.uri(), "tok");
+        let result = fire(&text_out, &client, "my_event", None, false).await;
+        assert!(
+            matches!(result, Err(crate::api::HaError::ConfirmationRequired(_))),
+            "expected ConfirmationRequired, got {result:?}"
+        );
     }
 }

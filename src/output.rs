@@ -4,10 +4,18 @@ use owo_colors::OwoColorize;
 
 use crate::api::HaError;
 
+/// Output format selector. `Auto` (the default) chooses JSON when stdout is not
+/// a TTY and table when it is. An explicit value always wins over TTY detection.
 #[derive(Clone, Copy, Debug, PartialEq, clap::ValueEnum)]
 pub enum OutputFormat {
+    /// Auto-detect: JSON when piped, table in a terminal.
+    Auto,
+    /// Human-friendly table/text, regardless of TTY.
+    Text,
+    /// JSON output, regardless of TTY.
     Json,
-    Table,
+    /// Plain text (alias for text, kept for backward compatibility).
+    #[value(hide = true)]
     Plain,
 }
 
@@ -19,18 +27,16 @@ pub struct OutputConfig {
 
 impl OutputConfig {
     pub fn new(format_arg: Option<OutputFormat>, quiet: bool) -> Self {
-        let format = format_arg.unwrap_or_else(|| {
-            if std::io::stdout().is_terminal() {
-                OutputFormat::Table
-            } else {
-                OutputFormat::Json
-            }
-        });
+        let format = format_arg.unwrap_or(OutputFormat::Auto);
         Self { format, quiet }
     }
 
     pub fn is_json(&self) -> bool {
-        matches!(self.format, OutputFormat::Json)
+        match self.format {
+            OutputFormat::Json => true,
+            OutputFormat::Text | OutputFormat::Plain => false,
+            OutputFormat::Auto => !std::io::stdout().is_terminal(),
+        }
     }
 
     /// Print data (tables, JSON, values) to stdout. Always shown.
@@ -45,24 +51,17 @@ impl OutputConfig {
         }
     }
 
-    /// Print an error. In JSON mode, emits the structured error envelope to stdout.
-    /// In human mode, prints to stderr.
+    /// Print the structured error envelope to stderr as a single JSON line
+    /// (the last line of stderr, per the spec). Always emits to stderr.
     pub fn print_error(&self, e: &HaError) {
-        if self.is_json() {
-            let envelope = serde_json::json!({
-                "ok": false,
-                "error": {
-                    "code": e.error_code(),
-                    "message": e.to_string()
-                }
-            });
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&envelope).expect("serialize")
-            );
-        } else {
-            eprintln!("{e}");
-        }
+        let envelope = serde_json::json!({
+            "error": {
+                "kind": e.error_kind(),
+                "message": e.to_string(),
+                "hint": e.error_hint(),
+            }
+        });
+        eprintln!("{}", serde_json::to_string(&envelope).expect("serialize"));
     }
 
     /// Print a JSON result or human message depending on format.
@@ -178,17 +177,27 @@ pub mod exit_codes {
 
     pub const SUCCESS: i32 = 0;
     pub const GENERAL_ERROR: i32 = 1;
+    /// Config/auth error (kind: auth, config_error).
     pub const CONFIG_ERROR: i32 = 2;
+    /// Resource not found (kind: not_found).
     pub const NOT_FOUND: i32 = 3;
+    /// Network/connection error (kind: connection).
     pub const CONNECTION_ERROR: i32 = 4;
-    /// Batch operation where some items succeeded and some failed (e.g. `registry entity remove`).
+    /// Batch operation where some items succeeded and some failed (kind: partial_failure).
     pub const PARTIAL_FAILURE: i32 = 5;
+    /// Confirmation required in non-interactive mode (kind: confirmation_required).
+    pub const CONFIRMATION_REQUIRED: i32 = 6;
+    /// Conflict: resource exists with different configuration (kind: conflict).
+    pub const CONFLICT: i32 = 7;
 
     pub fn for_error(e: &HaError) -> i32 {
         match e {
-            HaError::Auth(_) | HaError::InvalidInput(_) => CONFIG_ERROR,
+            HaError::Auth(_) => CONFIG_ERROR,
+            HaError::InvalidInput(_) => GENERAL_ERROR,
             HaError::NotFound(_) => NOT_FOUND,
             HaError::Connection(_) => CONNECTION_ERROR,
+            HaError::ConfirmationRequired(_) => CONFIRMATION_REQUIRED,
+            HaError::Conflict(_) => CONFLICT,
             _ => GENERAL_ERROR,
         }
     }
@@ -470,24 +479,40 @@ mod tests {
     }
 
     #[test]
-    fn print_error_json_mode_emits_envelope_to_stdout() {
-        // Verify the envelope structure by exercising the serialization path directly.
+    fn error_envelope_uses_kind_field() {
+        // Verify the spec-required envelope structure: error.kind (not error.code).
         let e = crate::api::HaError::NotFound("light.missing".into());
         let envelope = serde_json::json!({
-            "ok": false,
             "error": {
-                "code": e.error_code(),
-                "message": e.to_string()
+                "kind": e.error_kind(),
+                "message": e.to_string(),
+                "hint": e.error_hint(),
             }
         });
-        assert_eq!(envelope["ok"], false);
-        assert_eq!(envelope["error"]["code"], "HA_NOT_FOUND");
+        assert_eq!(envelope["error"]["kind"], "not_found");
         assert!(
             envelope["error"]["message"]
                 .as_str()
                 .unwrap()
                 .contains("light.missing")
         );
+    }
+
+    #[test]
+    fn error_envelope_is_valid_single_line_json() {
+        // The spec says the envelope is written as a single line of JSON.
+        let e = crate::api::HaError::Auth("expired".into());
+        let envelope = serde_json::json!({
+            "error": {
+                "kind": e.error_kind(),
+                "message": e.to_string(),
+                "hint": e.error_hint(),
+            }
+        });
+        let line = serde_json::to_string(&envelope).unwrap();
+        assert!(!line.contains('\n'), "envelope must be single-line");
+        let parsed: serde_json::Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(parsed["error"]["kind"], "auth");
     }
 
     #[test]
@@ -512,5 +537,48 @@ mod tests {
             exit_codes::for_error(&crate::api::HaError::Connection("x".into())),
             4
         );
+    }
+
+    #[test]
+    fn exit_code_for_confirmation_required_is_6() {
+        assert_eq!(
+            exit_codes::for_error(&crate::api::HaError::ConfirmationRequired("x".into())),
+            6
+        );
+    }
+
+    #[test]
+    fn exit_code_for_conflict_is_7() {
+        assert_eq!(
+            exit_codes::for_error(&crate::api::HaError::Conflict("x".into())),
+            7
+        );
+    }
+
+    #[test]
+    fn output_format_auto_is_json_when_not_tty() {
+        // In tests, stdout is not a TTY, so auto should select JSON.
+        let cfg = OutputConfig::new(None, false);
+        // stdout in test context is piped, so is_json() returns true for Auto.
+        assert!(
+            cfg.is_json(),
+            "Auto format should be JSON when stdout is not a TTY"
+        );
+    }
+
+    #[test]
+    fn output_format_text_is_not_json_even_when_piped() {
+        // Explicit text wins over TTY detection.
+        let cfg = OutputConfig::new(Some(OutputFormat::Text), false);
+        assert!(
+            !cfg.is_json(),
+            "Text format must not be JSON even when piped"
+        );
+    }
+
+    #[test]
+    fn output_format_json_is_always_json() {
+        let cfg = OutputConfig::new(Some(OutputFormat::Json), false);
+        assert!(cfg.is_json());
     }
 }

@@ -7,7 +7,7 @@ use homeassistant_cli::{api, commands};
 #[command(
     name = "ha",
     version,
-    about = "CLI for Home Assistant",
+    about = "CLI for Home Assistant. Run `ha schema` for machine-readable introspection.",
     arg_required_else_help = true
 )]
 struct Cli {
@@ -15,8 +15,8 @@ struct Cli {
     #[arg(long, env = "HA_PROFILE", global = true)]
     profile: Option<String>,
 
-    /// Output format [env: HA_OUTPUT]
-    #[arg(long, value_enum, env = "HA_OUTPUT", global = true)]
+    /// Output format: auto (default), text, or json. Explicit value always wins over TTY detection. [env: HA_OUTPUT]
+    #[arg(long, short = 'o', value_enum, env = "HA_OUTPUT", global = true)]
     output: Option<OutputFormat>,
 
     /// Suppress non-data output
@@ -76,9 +76,15 @@ enum EntityCommand {
         /// Filter by state value (e.g. on, off, unavailable)
         #[arg(long)]
         state: Option<String>,
-        /// Maximum number of results to show
+        /// Maximum number of results to return (default: 100)
+        #[arg(long, default_value = "100")]
+        limit: usize,
+        /// Number of results to skip before returning (pagination offset)
+        #[arg(long, default_value = "0")]
+        offset: usize,
+        /// Comma-separated list of fields to include in output (e.g. entity_id,state)
         #[arg(long)]
-        limit: Option<usize>,
+        fields: Option<String>,
     },
     /// Stream state changes for an entity
     Watch { entity_id: String },
@@ -96,11 +102,23 @@ enum ServiceCommand {
         /// Additional service data as JSON
         #[arg(long)]
         data: Option<String>,
+        /// Skip the interactive confirmation prompt (required when stdin is not a TTY)
+        #[arg(long)]
+        yes: bool,
     },
     /// List available services
     List {
         #[arg(long)]
         domain: Option<String>,
+        /// Maximum number of results to return (default: 100)
+        #[arg(long, default_value = "100")]
+        limit: usize,
+        /// Number of results to skip before returning (pagination offset)
+        #[arg(long, default_value = "0")]
+        offset: usize,
+        /// Comma-separated list of fields to include in output (e.g. domain,services)
+        #[arg(long)]
+        fields: Option<String>,
     },
 }
 
@@ -112,6 +130,9 @@ enum EventCommand {
         /// Event data as JSON
         #[arg(long)]
         data: Option<String>,
+        /// Skip the interactive confirmation prompt (required when stdin is not a TTY)
+        #[arg(long)]
+        yes: bool,
     },
     /// Stream events
     Watch {
@@ -162,7 +183,28 @@ enum RegistryEntityCommand {
 
 #[tokio::main]
 async fn main() {
-    let cli = Cli::parse();
+    // Use try_parse so we can intercept clap errors and emit a structured
+    // error envelope as the last line of stderr (spec requirement).
+    let cli = Cli::try_parse().unwrap_or_else(|e| {
+        // Print clap's human-readable message first, then emit the structured
+        // envelope as the very last stderr line (spec: last line of stderr).
+        let _ = e.print();
+        let message = e
+            .to_string()
+            .lines()
+            .find(|l| !l.trim().is_empty())
+            .unwrap_or("invalid input")
+            .trim()
+            .to_owned();
+        let envelope = serde_json::json!({
+            "error": {
+                "kind": "invalid_input",
+                "message": message,
+            }
+        });
+        eprintln!("{}", serde_json::to_string(&envelope).expect("serialize"));
+        std::process::exit(e.exit_code());
+    });
     let out = OutputConfig::new(cli.output, cli.quiet);
 
     match cli.command {
@@ -187,8 +229,8 @@ async fn main() {
             let cfg = match homeassistant_cli::config::Config::load(cli.profile.clone()) {
                 Ok(c) => c,
                 Err(e) => {
-                    eprintln!("{e}");
-                    std::process::exit(exit_codes::CONFIG_ERROR);
+                    out.print_error(&e);
+                    std::process::exit(exit_codes::for_error(&e));
                 }
             };
             let client = api::HaClient::new(&cfg.url, &cfg.token);
@@ -202,6 +244,8 @@ async fn main() {
                         domain,
                         state,
                         limit,
+                        offset,
+                        fields,
                     } => {
                         commands::entity::list(
                             &out,
@@ -209,6 +253,8 @@ async fn main() {
                             domain.as_deref(),
                             state.as_deref(),
                             limit,
+                            offset,
+                            fields.as_deref(),
                         )
                         .await
                     }
@@ -221,6 +267,7 @@ async fn main() {
                         service,
                         entity,
                         data,
+                        yes,
                     } => {
                         commands::service::call(
                             &out,
@@ -228,16 +275,35 @@ async fn main() {
                             &service,
                             entity.as_deref(),
                             data.as_deref(),
+                            yes,
                         )
                         .await
                     }
-                    ServiceCommand::List { domain } => {
-                        commands::service::list(&out, &client, domain.as_deref()).await
+                    ServiceCommand::List {
+                        domain,
+                        limit,
+                        offset,
+                        fields,
+                    } => {
+                        commands::service::list(
+                            &out,
+                            &client,
+                            domain.as_deref(),
+                            limit,
+                            offset,
+                            fields.as_deref(),
+                        )
+                        .await
                     }
                 },
                 Command::Event(cmd) => match cmd {
-                    EventCommand::Fire { event_type, data } => {
-                        commands::event::fire(&out, &client, &event_type, data.as_deref()).await
+                    EventCommand::Fire {
+                        event_type,
+                        data,
+                        yes,
+                    } => {
+                        commands::event::fire(&out, &client, &event_type, data.as_deref(), yes)
+                            .await
                     }
                     EventCommand::Watch { event_type } => {
                         commands::event::watch(&out, &client, event_type.as_deref()).await

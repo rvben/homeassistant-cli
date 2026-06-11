@@ -151,26 +151,37 @@ pub async fn entity_remove(
         return Ok(());
     }
 
-    // Auto-confirm for JSON mode and non-interactive stdin; otherwise require --yes or prompt.
-    let auto_confirm = yes || out.is_json() || !std::io::stdin().is_terminal();
-    if !auto_confirm {
-        eprintln!(
-            "About to remove {} entit{} from the Home Assistant registry:",
-            entity_ids.len(),
-            if entity_ids.len() == 1 { "y" } else { "ies" }
-        );
-        for id in entity_ids {
-            eprintln!("  {id}");
-        }
-        eprint!("Proceed? [y/N] ");
-        let _ = std::io::stderr().flush();
-        let mut input = String::new();
-        std::io::stdin()
-            .read_line(&mut input)
-            .map_err(|e| HaError::Other(format!("failed to read stdin: {e}")))?;
-        let answer = input.trim().to_ascii_lowercase();
-        if answer != "y" && answer != "yes" {
-            return Err(HaError::InvalidInput("aborted by user".into()));
+    // Confirmation logic: require --yes for non-interactive use.
+    // JSON mode auto-confirms (agents use JSON and pass --yes for safety).
+    // Non-TTY without --yes: refuse with confirmation_required per spec Principle 4.
+    let is_tty = std::io::stdin().is_terminal();
+    if !yes && !out.is_json() {
+        if is_tty {
+            eprintln!(
+                "About to remove {} entit{} from the Home Assistant registry:",
+                entity_ids.len(),
+                if entity_ids.len() == 1 { "y" } else { "ies" }
+            );
+            for id in entity_ids {
+                eprintln!("  {id}");
+            }
+            eprint!("Proceed? [y/N] ");
+            let _ = std::io::stderr().flush();
+            let mut input = String::new();
+            std::io::stdin()
+                .read_line(&mut input)
+                .map_err(|e| HaError::Other(format!("failed to read stdin: {e}")))?;
+            let answer = input.trim().to_ascii_lowercase();
+            if answer != "y" && answer != "yes" {
+                return Err(HaError::InvalidInput("aborted by user".into()));
+            }
+        } else {
+            // Non-interactive, no --yes: refuse per spec Principle 4.
+            return Err(HaError::ConfirmationRequired(format!(
+                "Removing {} entit{} requires confirmation",
+                entity_ids.len(),
+                if entity_ids.len() == 1 { "y" } else { "ies" }
+            )));
         }
     }
 

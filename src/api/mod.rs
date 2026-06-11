@@ -22,21 +22,42 @@ pub enum HaError {
     Api { status: u16, message: String },
     /// Network/TLS error from reqwest.
     Http(reqwest::Error),
+    /// Destructive command requires --yes but stdin is not a TTY.
+    ConfirmationRequired(String),
+    /// Resource exists with a different configuration than requested.
+    Conflict(String),
     /// Any other error.
     Other(String),
 }
 
 impl HaError {
-    /// Machine-readable error code for JSON error envelopes.
-    pub fn error_code(&self) -> &str {
+    /// Stable, snake_case kind identifier used in the structured error envelope.
+    /// Consumers branch on this field without parsing the message.
+    pub fn error_kind(&self) -> &str {
         match self {
-            HaError::Auth(_) => "HA_AUTH_ERROR",
-            HaError::NotFound(_) => "HA_NOT_FOUND",
-            HaError::InvalidInput(_) => "HA_INVALID_INPUT",
-            HaError::Connection(_) => "HA_CONNECTION_ERROR",
-            HaError::Api { .. } => "HA_API_ERROR",
-            HaError::Http(_) => "HA_HTTP_ERROR",
-            HaError::Other(_) => "HA_ERROR",
+            HaError::Auth(_) => "auth",
+            HaError::NotFound(_) => "not_found",
+            HaError::InvalidInput(_) => "invalid_input",
+            HaError::Connection(_) => "connection",
+            HaError::Api { .. } => "api_error",
+            HaError::Http(_) => "http_error",
+            HaError::ConfirmationRequired(_) => "confirmation_required",
+            HaError::Conflict(_) => "conflict",
+            HaError::Other(_) => "error",
+        }
+    }
+
+    /// Optional actionable hint for the error envelope. May be null in JSON.
+    pub fn error_hint(&self) -> Option<&str> {
+        match self {
+            HaError::Auth(_) => Some("Run `ha init` to set up or refresh credentials."),
+            HaError::ConfirmationRequired(_) => {
+                Some("Re-run with --yes to bypass the confirmation prompt.")
+            }
+            HaError::Connection(_) => {
+                Some("Check that Home Assistant is reachable and the URL is correct.")
+            }
+            _ => None,
         }
     }
 }
@@ -44,18 +65,16 @@ impl HaError {
 impl fmt::Display for HaError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            HaError::Auth(msg) => write!(
-                f,
-                "Authentication failed: {msg}\nCheck your token or run `ha init`."
-            ),
+            HaError::Auth(msg) => write!(f, "Authentication failed: {msg}"),
             HaError::NotFound(msg) => write!(f, "Not found: {msg}"),
-            HaError::InvalidInput(msg) => write!(f, "{msg}"),
-            HaError::Connection(url) => write!(
-                f,
-                "Could not connect to Home Assistant at {url}\nCheck that HA is running and the URL is correct."
-            ),
+            HaError::InvalidInput(msg) => write!(f, "Invalid input: {msg}"),
+            HaError::Connection(url) => {
+                write!(f, "Could not connect to Home Assistant at {url}")
+            }
             HaError::Api { status, message } => write!(f, "API error {status}: {message}"),
             HaError::Http(e) => write!(f, "HTTP error: {e}"),
+            HaError::ConfirmationRequired(msg) => write!(f, "{msg}"),
+            HaError::Conflict(msg) => write!(f, "Conflict: {msg}"),
             HaError::Other(msg) => write!(f, "{msg}"),
         }
     }
@@ -67,6 +86,12 @@ impl std::error::Error for HaError {
             HaError::Http(e) => Some(e),
             _ => None,
         }
+    }
+}
+
+impl From<std::io::Error> for HaError {
+    fn from(e: std::io::Error) -> Self {
+        HaError::Other(e.to_string())
     }
 }
 
@@ -147,26 +172,46 @@ mod tests {
     use std::error::Error;
 
     #[test]
-    fn error_code_returns_expected_strings() {
-        assert_eq!(HaError::Auth("x".into()).error_code(), "HA_AUTH_ERROR");
-        assert_eq!(HaError::NotFound("x".into()).error_code(), "HA_NOT_FOUND");
+    fn error_kind_returns_snake_case_identifiers() {
+        assert_eq!(HaError::Auth("x".into()).error_kind(), "auth");
+        assert_eq!(HaError::NotFound("x".into()).error_kind(), "not_found");
         assert_eq!(
-            HaError::InvalidInput("x".into()).error_code(),
-            "HA_INVALID_INPUT"
+            HaError::InvalidInput("x".into()).error_kind(),
+            "invalid_input"
         );
-        assert_eq!(
-            HaError::Connection("x".into()).error_code(),
-            "HA_CONNECTION_ERROR"
-        );
+        assert_eq!(HaError::Connection("x".into()).error_kind(), "connection");
         assert_eq!(
             HaError::Api {
                 status: 500,
                 message: "x".into()
             }
-            .error_code(),
-            "HA_API_ERROR"
+            .error_kind(),
+            "api_error"
         );
-        assert_eq!(HaError::Other("x".into()).error_code(), "HA_ERROR");
+        assert_eq!(HaError::Other("x".into()).error_kind(), "error");
+        assert_eq!(
+            HaError::ConfirmationRequired("x".into()).error_kind(),
+            "confirmation_required"
+        );
+        assert_eq!(HaError::Conflict("x".into()).error_kind(), "conflict");
+    }
+
+    #[test]
+    fn auth_error_hint_suggests_init() {
+        let err = HaError::Auth("expired".into());
+        assert!(
+            err.error_hint().unwrap_or("").contains("ha init"),
+            "auth hint must mention ha init"
+        );
+    }
+
+    #[test]
+    fn confirmation_required_hint_mentions_yes_flag() {
+        let err = HaError::ConfirmationRequired("delete requires confirmation".into());
+        assert!(
+            err.error_hint().unwrap_or("").contains("--yes"),
+            "confirmation_required hint must mention --yes"
+        );
     }
 
     #[test]
@@ -174,7 +219,6 @@ mod tests {
         let err = HaError::Auth("401 Unauthorized".into());
         let msg = err.to_string();
         assert!(msg.contains("Authentication failed"));
-        assert!(msg.contains("ha init") || msg.contains("HA_TOKEN"));
     }
 
     #[test]

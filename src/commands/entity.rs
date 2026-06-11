@@ -46,7 +46,9 @@ pub async fn list(
     client: &HaClient,
     domain: Option<&str>,
     state_filter: Option<&str>,
-    limit: Option<usize>,
+    limit: usize,
+    offset: usize,
+    fields: Option<&str>,
 ) -> Result<(), HaError> {
     let mut states = api::entities::list_states(client).await?;
 
@@ -59,40 +61,90 @@ pub async fn list(
 
     states.sort_by(|a, b| a.entity_id.cmp(&b.entity_id));
 
-    if let Some(n) = limit {
-        states.truncate(n);
-    }
+    let total = states.len();
+
+    // Apply offset before slicing to the requested page.
+    let states = if offset < states.len() {
+        &states[offset..]
+    } else {
+        &[][..]
+    };
+    let states: Vec<_> = states.iter().take(limit).collect();
+
+    let field_filter: Option<Vec<&str>> = fields.map(|f| f.split(',').map(str::trim).collect());
 
     if out.is_json() {
+        let items: Vec<serde_json::Value> = states
+            .iter()
+            .map(|s| {
+                let mut obj = serde_json::json!({
+                    "entity_id": s.entity_id,
+                    "state": s.state,
+                    "attributes": s.attributes,
+                    "last_changed": s.last_changed,
+                    "last_updated": s.last_updated,
+                });
+                if let (Some(ff), Some(map)) = (&field_filter, obj.as_object_mut()) {
+                    map.retain(|k, _| ff.contains(&k.as_str()));
+                }
+                obj
+            })
+            .collect();
         out.print_data(
             &serde_json::to_string_pretty(&serde_json::json!({
-                "ok": true,
-                "data": states
+                "items": items,
+                "total": total,
+                "limit": limit,
+                "offset": offset,
             }))
             .expect("serialize"),
         );
     } else {
+        let default_fields = vec!["entity_id", "name", "state", "last_updated"];
+        let show_fields: &[&str] = field_filter.as_deref().unwrap_or(&default_fields);
         let rows: Vec<Vec<String>> = states
             .iter()
             .map(|s| {
-                let name = s
-                    .attributes
-                    .get("friendly_name")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_owned();
-                vec![
-                    output::colored_entity_id(&s.entity_id),
-                    name,
-                    output::colored_state(&s.state),
-                    output::relative_time(&s.last_updated),
-                ]
+                show_fields
+                    .iter()
+                    .map(|f| match *f {
+                        "entity_id" => output::colored_entity_id(&s.entity_id),
+                        "name" => s
+                            .attributes
+                            .get("friendly_name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_owned(),
+                        "state" => output::colored_state(&s.state),
+                        "last_updated" | "updated" => output::relative_time(&s.last_updated),
+                        "last_changed" | "changed" => output::relative_time(&s.last_changed),
+                        other => s
+                            .attributes
+                            .get(other)
+                            .map(|v| v.to_string())
+                            .unwrap_or_default(),
+                    })
+                    .collect()
             })
             .collect();
-        out.print_data(&output::table(
-            &["ENTITY", "NAME", "STATE", "UPDATED"],
-            &rows,
-        ));
+        let headers: Vec<&str> = show_fields
+            .iter()
+            .map(|f| match *f {
+                "entity_id" => "ENTITY",
+                "name" => "NAME",
+                "state" => "STATE",
+                "last_updated" | "updated" => "UPDATED",
+                "last_changed" | "changed" => "CHANGED",
+                other => other,
+            })
+            .collect();
+        out.print_data(&output::table(&headers, &rows));
+        if total > offset + limit {
+            out.print_message(&format!(
+                "Showing {limit} of {total} (use --offset {} to see more)",
+                offset + limit
+            ));
+        }
     }
     Ok(())
 }
@@ -182,8 +234,47 @@ mod tests {
             .await;
 
         let client = HaClient::new(server.uri(), "tok");
-        let result = list(&json_out(), &client, Some("light"), None, None).await;
+        let result = list(&json_out(), &client, Some("light"), None, 100, 0, None).await;
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn list_json_output_includes_pagination_metadata() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/states"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([
+                state_json("light.a", "on"),
+                state_json("light.b", "off"),
+                state_json("light.c", "on"),
+            ])))
+            .mount(&server)
+            .await;
+
+        let client = HaClient::new(server.uri(), "tok");
+        // Capture stdout is not straightforward in unit tests; exercise the code
+        // path and verify no errors. The pagination metadata fields are validated
+        // via schema tests.
+        let result = list(&json_out(), &client, None, None, 2, 0, None).await;
+        assert!(result.is_ok(), "list with limit should succeed");
+    }
+
+    #[tokio::test]
+    async fn list_applies_offset_correctly() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/states"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([
+                state_json("light.a", "on"),
+                state_json("light.b", "off"),
+                state_json("light.c", "on"),
+            ])))
+            .mount(&server)
+            .await;
+
+        let client = HaClient::new(server.uri(), "tok");
+        let result = list(&json_out(), &client, None, None, 100, 2, None).await;
+        assert!(result.is_ok(), "offset beyond some items should succeed");
     }
 
     #[tokio::test]

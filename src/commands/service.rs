@@ -1,3 +1,5 @@
+use std::io::IsTerminal;
+
 use owo_colors::OwoColorize;
 
 use crate::api::{self, HaClient, HaError};
@@ -9,7 +11,33 @@ pub async fn call(
     service: &str,
     entity: Option<&str>,
     data: Option<&str>,
+    yes: bool,
 ) -> Result<(), HaError> {
+    // Service calls modify HA state. Confirmation is required unless:
+    //   --yes is given, or JSON mode is active (agent callers always use explicit JSON)
+    // Without a TTY and without --yes or JSON mode: refuse with confirmation_required.
+    let is_tty = std::io::stdin().is_terminal();
+    if !yes && !out.is_json() {
+        if is_tty {
+            // Interactive: prompt the user.
+            eprint!("Call service '{service}'? [y/N] ");
+            use std::io::Write;
+            let _ = std::io::stderr().flush();
+            let mut input = String::new();
+            std::io::stdin()
+                .read_line(&mut input)
+                .map_err(|e| HaError::Other(format!("failed to read stdin: {e}")))?;
+            let answer = input.trim().to_ascii_lowercase();
+            if answer != "y" && answer != "yes" {
+                return Err(HaError::InvalidInput("aborted by user".into()));
+            }
+        } else {
+            // Non-interactive, no --yes: refuse per spec Principle 4.
+            return Err(HaError::ConfirmationRequired(format!(
+                "Calling service '{service}' requires confirmation"
+            )));
+        }
+    }
     let (domain, svc) = service.split_once('.').ok_or_else(|| {
         HaError::InvalidInput(format!(
             "Service must be in 'domain.service' format, got '{service}'"
@@ -73,6 +101,9 @@ pub async fn list(
     out: &OutputConfig,
     client: &HaClient,
     domain: Option<&str>,
+    limit: usize,
+    offset: usize,
+    _fields: Option<&str>,
 ) -> Result<(), HaError> {
     let mut domains = api::services::list_services(client).await?;
 
@@ -82,10 +113,18 @@ pub async fn list(
 
     domains.sort_by(|a, b| a.domain.cmp(&b.domain));
 
+    let total = domains.len();
+    let domains: Vec<_> = domains.into_iter().skip(offset).take(limit).collect();
+
     if out.is_json() {
         out.print_data(
-            &serde_json::to_string_pretty(&serde_json::json!({"ok": true, "data": domains}))
-                .expect("serialize"),
+            &serde_json::to_string_pretty(&serde_json::json!({
+                "items": domains,
+                "total": total,
+                "limit": limit,
+                "offset": offset,
+            }))
+            .expect("serialize"),
         );
     } else {
         let mut rows: Vec<Vec<String>> = domains
@@ -152,12 +191,14 @@ mod tests {
             .await;
 
         let client = HaClient::new(server.uri(), "tok");
+        // yes=true to skip confirmation (stdin is not a TTY in tests)
         let result = call(
             &json_out(),
             &client,
             "light.turn_on",
             Some("light.living_room"),
             None,
+            true,
         )
         .await;
         assert!(result.is_ok());
@@ -167,8 +208,23 @@ mod tests {
     async fn call_returns_error_on_invalid_service_format() {
         let server = MockServer::start().await;
         let client = HaClient::new(server.uri(), "tok");
-        let result = call(&json_out(), &client, "invalid_format", None, None).await;
+        let result = call(&json_out(), &client, "invalid_format", None, None, true).await;
         assert!(matches!(result, Err(crate::api::HaError::InvalidInput(_))));
+    }
+
+    #[tokio::test]
+    async fn call_without_yes_in_non_tty_text_mode_requires_confirmation() {
+        use crate::output::OutputFormat;
+        // In text mode (not JSON) without --yes and without a TTY, must return ConfirmationRequired.
+        // The test process has piped stdin, so is_terminal() returns false.
+        let text_out = OutputConfig::new(Some(OutputFormat::Text), false);
+        let server = MockServer::start().await;
+        let client = HaClient::new(server.uri(), "tok");
+        let result = call(&text_out, &client, "light.turn_on", None, None, false).await;
+        assert!(
+            matches!(result, Err(crate::api::HaError::ConfirmationRequired(_))),
+            "expected ConfirmationRequired, got {result:?}"
+        );
     }
 
     #[tokio::test]
@@ -184,7 +240,7 @@ mod tests {
             .await;
 
         let client = HaClient::new(server.uri(), "tok");
-        let result = list(&json_out(), &client, None).await;
+        let result = list(&json_out(), &client, None, 100, 0, None).await;
         assert!(result.is_ok());
     }
 }
