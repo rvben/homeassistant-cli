@@ -18,6 +18,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+
+## [0.2.1](https://github.com/rvben/homeassistant-cli/compare/v0.2.0...v0.2.1) - 2026-06-11
+
+### Added
+
+- comply with CLI Spec v0.2 (score 24/24) ([b77ddfe](https://github.com/rvben/homeassistant-cli/commit/b77ddfe61c9aa0100956589b8aacdf2b76e871ff))
+
+### Fixed
+
+- **output**: accept legacy --output table|plain values for backward compat ([59b87b1](https://github.com/rvben/homeassistant-cli/commit/59b87b1eab7cf56120ae46bf59f61d648bea111f))
+
 ## [0.2.0](https://github.com/rvben/homeassistant-cli/compare/v0.1.14...v0.2.0) - 2026-04-23
 
 ### Added
