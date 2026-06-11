@@ -17,6 +17,9 @@ pub enum OutputFormat {
     /// Plain text (alias for text, kept for backward compatibility).
     #[value(hide = true)]
     Plain,
+    /// Table (alias for text, kept for backward compatibility).
+    #[value(hide = true)]
+    Table,
 }
 
 #[derive(Clone, Copy)]
@@ -34,7 +37,7 @@ impl OutputConfig {
     pub fn is_json(&self) -> bool {
         match self.format {
             OutputFormat::Json => true,
-            OutputFormat::Text | OutputFormat::Plain => false,
+            OutputFormat::Text | OutputFormat::Plain | OutputFormat::Table => false,
             OutputFormat::Auto => !std::io::stdout().is_terminal(),
         }
     }
@@ -580,5 +583,44 @@ mod tests {
     fn output_format_json_is_always_json() {
         let cfg = OutputConfig::new(Some(OutputFormat::Json), false);
         assert!(cfg.is_json());
+    }
+
+    // Backward-compat: --output table and --output plain must still be accepted
+    // and must produce text (non-JSON) output regardless of TTY state.
+    #[test]
+    fn output_format_table_is_not_json() {
+        let cfg = OutputConfig::new(Some(OutputFormat::Table), false);
+        assert!(
+            !cfg.is_json(),
+            "--output table must produce text output, not JSON"
+        );
+    }
+
+    #[test]
+    fn output_format_plain_is_not_json() {
+        let cfg = OutputConfig::new(Some(OutputFormat::Plain), false);
+        assert!(
+            !cfg.is_json(),
+            "--output plain must produce text output, not JSON"
+        );
+    }
+
+    // Verify the backward-compat values are accepted by clap's value parser.
+    // This exercises the production code path (clap ValueEnum derive) so a
+    // regression in the hidden alias wiring will fail here, not just at runtime.
+    #[test]
+    fn clap_parses_table_as_output_format() {
+        use clap::ValueEnum;
+        let val = OutputFormat::from_str("table", true)
+            .expect("--output table must be a valid clap value");
+        assert_eq!(val, OutputFormat::Table);
+    }
+
+    #[test]
+    fn clap_parses_plain_as_output_format() {
+        use clap::ValueEnum;
+        let val = OutputFormat::from_str("plain", true)
+            .expect("--output plain must be a valid clap value");
+        assert_eq!(val, OutputFormat::Plain);
     }
 }
