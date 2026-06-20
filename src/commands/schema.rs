@@ -316,7 +316,14 @@ pub fn build_schema() -> serde_json::Value {
                         "description": "Profile to create or update"
                     }
                 ],
-                "output_fields": []
+                "output_fields": [
+                    {"name": "configPath", "type": "string", "description": "Absolute path to the config file that will be written"},
+                    {"name": "pathResolution", "type": "string", "description": "Description of how the config path is resolved"},
+                    {"name": "recommendedPermissions", "type": "string", "description": "Recommended file permissions for the config file"},
+                    {"name": "tokenInstructions", "type": "object", "description": "Step-by-step instructions for creating a long-lived access token"},
+                    {"name": "requiredFields", "type": "array", "description": "Config keys required in the profile: url, token"},
+                    {"name": "example", "type": "object", "description": "Example config file path and format"}
+                ]
             },
             {
                 "name": "config show",
