@@ -19,6 +19,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 
 
+
+## [0.2.2](https://github.com/rvben/homeassistant-cli/compare/v0.2.1...v0.2.2) - 2026-06-20
+
+### Added
+
+- **schema**: fill missing output_fields for init command ([eb1f0ff](https://github.com/rvben/homeassistant-cli/commit/eb1f0ffa2281bc8f3b82d18f24f53b6bebcc3b73))
+
 ## [0.2.1](https://github.com/rvben/homeassistant-cli/compare/v0.2.0...v0.2.1) - 2026-06-11
 
 ### Added
