@@ -1,6 +1,6 @@
 pub fn build_schema() -> serde_json::Value {
-    serde_json::json!({
-        "clispec": "0.2",
+    let mut schema = serde_json::json!({
+        "clispec": "0.3",
         "name": "ha",
         "version": env!("CARGO_PKG_VERSION"),
         "description": "Home Assistant CLI - agent-friendly with structured output and schema introspection",
@@ -115,8 +115,8 @@ pub fn build_schema() -> serde_json::Value {
                 ],
                 "output_fields": [
                     {"name": "entity_id", "type": "string"},
-                    {"name": "new_state", "type": "object | null"},
-                    {"name": "old_state", "type": "object | null"}
+                    {"name": "new_state", "type": "object", "nullable": true},
+                    {"name": "old_state", "type": "object", "nullable": true}
                 ]
             },
             {
@@ -258,6 +258,26 @@ pub fn build_schema() -> serde_json::Value {
                         "type": "string",
                         "required": false,
                         "description": "Filter by domain (e.g. light, switch)"
+                    },
+                    {
+                        "name": "--limit",
+                        "type": "integer",
+                        "required": false,
+                        "default": 100,
+                        "description": "Maximum number of registry entries to return"
+                    },
+                    {
+                        "name": "--offset",
+                        "type": "integer",
+                        "required": false,
+                        "default": 0,
+                        "description": "Number of matching registry entries to skip"
+                    },
+                    {
+                        "name": "--fields",
+                        "type": "string",
+                        "required": false,
+                        "description": "Comma-separated fields to include in JSON records"
                     }
                 ],
                 "output_fields": [
@@ -441,7 +461,118 @@ pub fn build_schema() -> serde_json::Value {
                 "description": "General error not covered by a more specific kind."
             }
         ]
-    })
+    });
+    enrich_v0_3(&mut schema);
+    schema
+}
+
+fn enrich_v0_3(schema: &mut serde_json::Value) {
+    schema["output"] = serde_json::json!({"tty": "text", "piped": "json"});
+    let Some(commands) = schema["commands"].as_array_mut() else {
+        return;
+    };
+
+    for command in commands {
+        let Some(object) = command.as_object_mut() else {
+            continue;
+        };
+        let name = object["name"].as_str().unwrap_or_default().to_string();
+        let mutating = object["mutating"].as_bool().unwrap_or(false);
+        let effects = if !mutating {
+            "read_only"
+        } else if matches!(name.as_str(), "config set" | "init") {
+            "idempotent"
+        } else {
+            "non_idempotent"
+        };
+        object.insert("effects".into(), serde_json::json!(effects));
+
+        if name == "completions" {
+            object.remove("output_fields");
+            object.insert("output_kind".into(), serde_json::json!("opaque"));
+            object.insert("media_type".into(), serde_json::json!("text/plain"));
+            continue;
+        }
+        if matches!(name.as_str(), "entity watch" | "event watch") {
+            object.insert("output_kind".into(), serde_json::json!("stream"));
+            object.insert("stream_format".into(), serde_json::json!("ndjson"));
+            continue;
+        }
+
+        let unbounded = matches!(
+            name.as_str(),
+            "entity list" | "service list" | "registry entity list"
+        );
+        object.insert(
+            "cardinality".into(),
+            serde_json::json!(if unbounded { "unbounded" } else { "bounded" }),
+        );
+        if unbounded {
+            object.insert(
+                "pagination".into(),
+                serde_json::json!({
+                    "style": "offset",
+                    "limit_arg": "--limit",
+                    "offset_arg": "--offset"
+                }),
+            );
+            object.insert("fields_arg".into(), serde_json::json!("--fields"));
+        }
+        if matches!(
+            name.as_str(),
+            "service call" | "event fire" | "registry entity remove"
+        ) {
+            object.insert("confirmation_bypass_arg".into(), serde_json::json!("--yes"));
+        }
+        if name == "config show" {
+            object.insert(
+                "example".into(),
+                serde_json::json!({"args": ["config", "show"]}),
+            );
+        }
+        if name == "schema" {
+            object.remove("output_fields");
+            object.insert("cardinality".into(), serde_json::json!("single"));
+            object.insert(
+                "stdout_schema".into(),
+                serde_json::json!({"$ref": "https://clispec.dev/schema/v0.3.json"}),
+            );
+        }
+
+        if let Some(fields) = object
+            .get_mut("output_fields")
+            .and_then(|v| v.as_array_mut())
+        {
+            for field in fields {
+                let Some(field) = field.as_object_mut() else {
+                    continue;
+                };
+                if let Some(base) = field
+                    .get("type")
+                    .and_then(|v| v.as_str())
+                    .and_then(|kind| kind.strip_suffix(" | null"))
+                    .map(str::to_owned)
+                {
+                    field.insert("type".into(), serde_json::json!(base));
+                    field.insert("nullable".into(), serde_json::json!(true));
+                }
+                if field.get("type").and_then(|v| v.as_str()) == Some("array")
+                    && !field.contains_key("items")
+                {
+                    let item_type =
+                        if field.get("name").and_then(|v| v.as_str()) == Some("requiredFields") {
+                            "string"
+                        } else {
+                            "object"
+                        };
+                    field.insert("items".into(), serde_json::json!({"type": item_type}));
+                }
+            }
+        }
+        if !object.contains_key("output_fields") && !object.contains_key("stdout_schema") {
+            object.insert("stdout_schema".into(), serde_json::json!({}));
+        }
+    }
 }
 
 pub fn print_schema() {
@@ -455,11 +586,11 @@ pub fn print_schema() {
 mod tests {
     use super::*;
 
-    /// The clispec v0.2 JSON Schema, vendored for offline validation.
-    const CLISPEC_SCHEMA_V0_2: &str = include_str!("../../tests/fixtures/clispec-v0.2.json");
+    /// The clispec v0.3 JSON Schema, vendored for offline validation.
+    const CLISPEC_SCHEMA_V0_3: &str = include_str!("../../tests/fixtures/clispec-v0.3.json");
 
-    fn validate_against_v0_2(instance: &serde_json::Value) -> Result<(), String> {
-        let schema: serde_json::Value = serde_json::from_str(CLISPEC_SCHEMA_V0_2)
+    fn validate_against_v0_3(instance: &serde_json::Value) -> Result<(), String> {
+        let schema: serde_json::Value = serde_json::from_str(CLISPEC_SCHEMA_V0_3)
             .expect("vendored clispec schema must be valid JSON");
         let validator = jsonschema::draft202012::new(&schema)
             .map_err(|e| format!("vendored schema is not a valid Draft 2020-12 schema: {e}"))?;
@@ -476,16 +607,16 @@ mod tests {
     }
 
     #[test]
-    fn schema_validates_against_clispec_v0_2() {
+    fn schema_validates_against_clispec_v0_3() {
         let schema = build_schema();
-        validate_against_v0_2(&schema)
-            .expect("ha schema must validate against clispec v0.2 JSON Schema");
+        validate_against_v0_3(&schema)
+            .expect("ha schema must validate against clispec v0.3 JSON Schema");
     }
 
     #[test]
     fn schema_has_clispec_version() {
         let schema = build_schema();
-        assert_eq!(schema["clispec"], "0.2");
+        assert_eq!(schema["clispec"], "0.3");
     }
 
     #[test]

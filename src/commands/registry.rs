@@ -17,13 +17,27 @@ use crate::output::{self, OutputConfig, exit_codes};
 
 /// List registered entities. `integration` filters by platform (e.g. `hue`);
 /// `domain` filters by entity-id prefix (e.g. `light`).
+pub struct RegistryListOptions<'a> {
+    pub integration: Option<&'a str>,
+    pub domain: Option<&'a str>,
+    pub limit: usize,
+    pub offset: usize,
+    pub fields: Option<&'a str>,
+}
+
 pub async fn entity_list(
     out: &OutputConfig,
     base_url: &str,
     token: &str,
-    integration: Option<&str>,
-    domain: Option<&str>,
+    options: RegistryListOptions<'_>,
 ) -> Result<(), HaError> {
+    let RegistryListOptions {
+        integration,
+        domain,
+        limit,
+        offset,
+        fields,
+    } = options;
     let mut ws = HaWs::connect(base_url, token).await?;
     let raw = ws
         .call("config/entity_registry/list", serde_json::json!({}))
@@ -53,11 +67,29 @@ pub async fn entity_list(
         ka.cmp(kb)
     });
 
+    let total = entries.len();
+    let mut entries: Vec<_> = entries.into_iter().skip(offset).take(limit).collect();
+    if let Some(fields) = fields {
+        let selected: Vec<_> = fields
+            .split(',')
+            .map(str::trim)
+            .filter(|field| !field.is_empty())
+            .collect();
+        for entry in &mut entries {
+            if let Some(object) = entry.as_object_mut() {
+                object.retain(|key, _| selected.contains(&key.as_str()));
+            }
+        }
+    }
+
     if out.is_json() {
         out.print_data(
             &serde_json::to_string_pretty(&serde_json::json!({
                 "ok": true,
                 "data": entries,
+                "total": total,
+                "limit": limit,
+                "offset": offset,
             }))
             .expect("serialize"),
         );
@@ -365,9 +397,20 @@ mod tests {
         })
         .await;
 
-        entity_list(&json_out(), &base, "tok", None, None)
-            .await
-            .unwrap();
+        entity_list(
+            &json_out(),
+            &base,
+            "tok",
+            RegistryListOptions {
+                integration: None,
+                domain: None,
+                limit: 100,
+                offset: 0,
+                fields: None,
+            },
+        )
+        .await
+        .unwrap();
         handle.await.unwrap();
     }
 
@@ -390,9 +433,20 @@ mod tests {
         })
         .await;
 
-        entity_list(&json_out(), &base, "tok", Some("hue"), Some("light"))
-            .await
-            .unwrap();
+        entity_list(
+            &json_out(),
+            &base,
+            "tok",
+            RegistryListOptions {
+                integration: Some("hue"),
+                domain: Some("light"),
+                limit: 100,
+                offset: 0,
+                fields: None,
+            },
+        )
+        .await
+        .unwrap();
         handle.await.unwrap();
     }
 

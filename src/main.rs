@@ -166,6 +166,15 @@ enum RegistryEntityCommand {
         /// Filter by domain (e.g. light, switch)
         #[arg(long)]
         domain: Option<String>,
+        /// Maximum number of registry entries to return
+        #[arg(long, default_value_t = 100)]
+        limit: usize,
+        /// Number of matching registry entries to skip
+        #[arg(long, default_value_t = 0)]
+        offset: usize,
+        /// Comma-separated fields to include in JSON records
+        #[arg(long)]
+        fields: Option<String>,
     },
     /// Remove entities from the registry. Requires --yes in interactive mode.
     Remove {
@@ -314,13 +323,21 @@ async fn main() {
                         RegistryEntityCommand::List {
                             integration,
                             domain,
+                            limit,
+                            offset,
+                            fields,
                         } => {
                             commands::registry::entity_list(
                                 &out,
                                 &cfg.url,
                                 &cfg.token,
-                                integration.as_deref(),
-                                domain.as_deref(),
+                                commands::registry::RegistryListOptions {
+                                    integration: integration.as_deref(),
+                                    domain: domain.as_deref(),
+                                    limit,
+                                    offset,
+                                    fields: fields.as_deref(),
+                                },
                             )
                             .await
                         }
