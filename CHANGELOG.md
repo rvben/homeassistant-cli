@@ -4,21 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.4](https://github.com/rvben/homeassistant-cli/compare/v0.2.3...v0.2.4) - 2026-09-03
 
+### Added
 
+- **auth**: standardize authentication workflow ([aef0703](https://github.com/rvben/homeassistant-cli/commit/aef0703b45d7f9fb51126a9814801cf60026cf2d))
 
+### Fixed
 
-
-
-
-
-
-
-
-
-
-
-
+- **release**: use package version in dry runs ([04f632b](https://github.com/rvben/homeassistant-cli/commit/04f632b4cc8e3f3a4942c7d4c3ee98ddbc7ef130))
+- **ci**: install pinned Rust components ([204f076](https://github.com/rvben/homeassistant-cli/commit/204f0769e7dd0bdcd0ea317449e8a445064f8bae))
+- **release**: scope assets to the current tag ([693047e](https://github.com/rvben/homeassistant-cli/commit/693047e70e82d92ee4fdb69bfe27b43f5f2729ef))
 
 ## [0.2.2](https://github.com/rvben/homeassistant-cli/compare/v0.2.1...v0.2.2) - 2026-06-20
 
