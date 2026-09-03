@@ -353,8 +353,18 @@ pub fn build_schema() -> serde_json::Value {
                 "output_fields": [
                     {"name": "config_file", "type": "string"},
                     {"name": "file_exists", "type": "boolean"},
+                    {"name": "active_profile", "type": "string"},
                     {"name": "profiles", "type": "array"},
                     {"name": "env", "type": "object"}
+                ]
+            },
+            {
+                "name": "config path",
+                "description": "Print the configuration file path",
+                "mutating": false,
+                "args": [],
+                "output_fields": [
+                    {"name": "config_path", "type": "string"}
                 ]
             },
             {
@@ -380,6 +390,105 @@ pub fn build_schema() -> serde_json::Value {
                     {"name": "ok", "type": "boolean"},
                     {"name": "key", "type": "string"},
                     {"name": "profile", "type": "string"}
+                ]
+            },
+            {
+                "name": "auth login",
+                "description": "Configure credentials interactively and verify them. Equivalent to init.",
+                "mutating": true,
+                "args": [],
+                "output_fields": [
+                    {"name": "configPath", "type": "string"},
+                    {"name": "pathResolution", "type": "string"},
+                    {"name": "recommendedPermissions", "type": "string"},
+                    {"name": "tokenInstructions", "type": "object"},
+                    {"name": "requiredFields", "type": "array", "items": {"type": "string"}},
+                    {"name": "example", "type": "object"}
+                ]
+            },
+            {
+                "name": "auth status",
+                "description": "Show whether credentials are configured and valid",
+                "mutating": false,
+                "args": [
+                    {"name": "--offline", "type": "boolean", "required": false, "default": false, "description": "Check local configuration without contacting Home Assistant"}
+                ],
+                "output_fields": [
+                    {"name": "profile", "type": "string"},
+                    {"name": "status", "type": "string"},
+                    {"name": "configured", "type": "boolean"},
+                    {"name": "verified", "type": "boolean"},
+                    {"name": "credential_source", "type": "string"},
+                    {"name": "url", "type": "string"}
+                ]
+            },
+            {
+                "name": "auth logout",
+                "description": "Remove the stored token for the selected profile",
+                "mutating": true,
+                "args": [],
+                "output_fields": [
+                    {"name": "profile", "type": "string"},
+                    {"name": "logged_out", "type": "boolean"},
+                    {"name": "credential_removed", "type": "boolean"},
+                    {"name": "environment_override", "type": "boolean"}
+                ]
+            },
+            {
+                "name": "profile list",
+                "description": "List configured profiles",
+                "mutating": false,
+                "args": [],
+                "output_fields": [
+                    {"name": "items", "type": "array", "items": {"type": "object", "fields": [
+                        {"name": "name", "type": "string"},
+                        {"name": "active", "type": "boolean"},
+                        {"name": "url", "type": "string"},
+                        {"name": "configured", "type": "boolean"}
+                    ]}},
+                    {"name": "total", "type": "integer"}
+                ]
+            },
+            {
+                "name": "profile use",
+                "description": "Select the default profile",
+                "mutating": true,
+                "args": [
+                    {"name": "name", "type": "string", "required": true, "description": "Profile name to select"}
+                ],
+                "output_fields": [
+                    {"name": "profile", "type": "string"},
+                    {"name": "active", "type": "boolean"}
+                ]
+            },
+            {
+                "name": "profile remove",
+                "description": "Remove a profile",
+                "mutating": true,
+                "args": [
+                    {"name": "name", "type": "string", "required": true, "description": "Profile name to remove"},
+                    {"name": "--yes", "type": "boolean", "required": false, "default": false, "description": "Confirm profile removal"}
+                ],
+                "output_fields": [
+                    {"name": "profile", "type": "string"},
+                    {"name": "removed", "type": "boolean"}
+                ]
+            },
+            {
+                "name": "doctor",
+                "description": "Check configuration and Home Assistant connectivity",
+                "mutating": false,
+                "args": [
+                    {"name": "--offline", "type": "boolean", "required": false, "default": false, "description": "Check local configuration without contacting Home Assistant"}
+                ],
+                "output_fields": [
+                    {"name": "ok", "type": "boolean"},
+                    {"name": "offline", "type": "boolean"},
+                    {"name": "checks", "type": "array", "items": {"type": "object", "fields": [
+                        {"name": "name", "type": "string"},
+                        {"name": "ok", "type": "boolean"},
+                        {"name": "detail", "type": "string"}
+                    ]}}
                 ]
             },
             {
@@ -480,7 +589,10 @@ fn enrich_v0_3(schema: &mut serde_json::Value) {
         let mutating = object["mutating"].as_bool().unwrap_or(false);
         let effects = if !mutating {
             "read_only"
-        } else if matches!(name.as_str(), "config set" | "init") {
+        } else if matches!(
+            name.as_str(),
+            "config set" | "init" | "auth login" | "auth logout" | "profile use" | "profile remove"
+        ) {
             "idempotent"
         } else {
             "non_idempotent"
@@ -520,7 +632,7 @@ fn enrich_v0_3(schema: &mut serde_json::Value) {
         }
         if matches!(
             name.as_str(),
-            "service call" | "event fire" | "registry entity remove"
+            "service call" | "event fire" | "registry entity remove" | "profile remove"
         ) {
             object.insert("confirmation_bypass_arg".into(), serde_json::json!("--yes"));
         }
@@ -694,6 +806,10 @@ mod tests {
         assert!(names.contains(&"init"));
         assert!(names.contains(&"config show"));
         assert!(names.contains(&"config set"));
+        assert!(names.contains(&"auth status"));
+        assert!(names.contains(&"profile list"));
+        assert!(names.contains(&"config path"));
+        assert!(names.contains(&"doctor"));
     }
 
     #[test]

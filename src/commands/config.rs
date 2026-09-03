@@ -1,9 +1,9 @@
+use crate::api::HaError;
 use crate::config;
 use crate::output::{OutputConfig, mask_credential};
 
 pub fn show(out: &OutputConfig, profile_arg: Option<&str>) {
-    let _ = profile_arg; // profile_arg reserved for future use; show always displays all profiles
-    let summary = config::config_summary();
+    let summary = config::config_summary(profile_arg);
 
     if out.is_json() {
         let profiles_json: Vec<serde_json::Value> = summary
@@ -24,6 +24,7 @@ pub fn show(out: &OutputConfig, profile_arg: Option<&str>) {
                 "data": {
                     "config_file": summary.config_file,
                     "file_exists": summary.file_exists,
+                    "active_profile": summary.active_profile,
                     "profiles": profiles_json,
                     "env": {
                         "HA_URL": summary.env_url,
@@ -36,6 +37,7 @@ pub fn show(out: &OutputConfig, profile_arg: Option<&str>) {
         );
     } else {
         println!("Config file: {}", summary.config_file.display());
+        println!("Active profile: {}", summary.active_profile);
         if !summary.file_exists {
             println!("  (not found — run `ha init` to create it)");
             return;
@@ -67,6 +69,77 @@ pub fn show(out: &OutputConfig, profile_arg: Option<&str>) {
     }
 }
 
+pub fn path(out: &OutputConfig) {
+    let path = config::config_path();
+    out.print_result(
+        &serde_json::json!({"config_path": path}),
+        &path.display().to_string(),
+    );
+}
+
+pub fn profile_list(out: &OutputConfig, profile_arg: Option<&str>) {
+    let summary = config::config_summary(profile_arg);
+    let items = summary
+        .profiles
+        .iter()
+        .map(|profile| {
+            serde_json::json!({
+                "name": profile.name,
+                "active": profile.name == summary.active_profile,
+                "url": profile.url,
+                "configured": profile.url.as_ref().is_some_and(|value| !value.is_empty())
+                    && profile.token.as_ref().is_some_and(|value| !value.is_empty()),
+            })
+        })
+        .collect::<Vec<_>>();
+    if out.is_json() {
+        out.print_data(
+            &serde_json::to_string_pretty(
+                &serde_json::json!({"items": items, "total": items.len()}),
+            )
+            .expect("serialize profiles"),
+        );
+    } else if items.is_empty() {
+        out.print_data("No profiles configured. Run `ha init`.");
+    } else {
+        for item in items {
+            out.print_data(&format!(
+                "{} {:<20} {}",
+                if item["active"].as_bool().unwrap_or(false) {
+                    "*"
+                } else {
+                    " "
+                },
+                item["name"].as_str().unwrap_or_default(),
+                item["url"].as_str().unwrap_or("(not set)")
+            ));
+        }
+    }
+}
+
+pub fn profile_use(out: &OutputConfig, name: &str) -> Result<(), HaError> {
+    config::use_profile(&config::config_path(), name)?;
+    out.print_result(
+        &serde_json::json!({"profile": name, "active": true}),
+        &format!("Active profile set to '{name}'."),
+    );
+    Ok(())
+}
+
+pub fn profile_remove(out: &OutputConfig, name: &str, yes: bool) -> Result<(), HaError> {
+    if !yes {
+        return Err(HaError::ConfirmationRequired(
+            "profile removal requires --yes".to_owned(),
+        ));
+    }
+    config::remove_profile(&config::config_path(), name)?;
+    out.print_result(
+        &serde_json::json!({"profile": name, "removed": true}),
+        &format!("Profile '{name}' removed."),
+    );
+    Ok(())
+}
+
 pub fn set(out: &OutputConfig, profile_arg: Option<&str>, key: &str, value: &str) {
     if key != "url" && key != "token" {
         eprintln!("Unknown config key '{key}'. Valid keys: url, token");
@@ -74,18 +147,15 @@ pub fn set(out: &OutputConfig, profile_arg: Option<&str>, key: &str, value: &str
     }
 
     let path = config::config_path();
-    let profile = profile_arg.unwrap_or("default");
-
-    let (current_url, current_token) =
-        config::read_profile_credentials(&path, profile).unwrap_or_default();
-
-    let (url, token) = if key == "url" {
-        (value.to_owned(), current_token)
-    } else {
-        (current_url, value.to_owned())
+    let profile = match config::selected_profile_name(profile_arg) {
+        Ok(profile) => profile,
+        Err(error) => {
+            out.print_error(&error);
+            std::process::exit(crate::output::exit_codes::for_error(&error));
+        }
     };
 
-    if let Err(e) = config::write_profile(&path, profile, &url, &token) {
+    if let Err(e) = config::write_profile_value(&path, &profile, key, value) {
         eprintln!("{e}");
         std::process::exit(crate::output::exit_codes::GENERAL_ERROR);
     }

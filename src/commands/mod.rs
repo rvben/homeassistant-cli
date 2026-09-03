@@ -1,4 +1,6 @@
+pub mod auth;
 pub mod config;
+pub mod doctor;
 pub mod entity;
 pub mod event;
 pub mod init;

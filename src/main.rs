@@ -46,9 +46,21 @@ enum Command {
     Registry(RegistryCommand),
 
     /// Set up credentials interactively (or print JSON schema for agents)
-    Init {
+    Init,
+
+    /// Manage authentication
+    #[command(subcommand, arg_required_else_help = true)]
+    Auth(AuthCommand),
+
+    /// Manage configuration profiles
+    #[command(subcommand, arg_required_else_help = true)]
+    Profile(ProfileCommand),
+
+    /// Check configuration and Home Assistant connectivity
+    Doctor {
+        /// Check local configuration without contacting Home Assistant
         #[arg(long)]
-        profile: Option<String>,
+        offline: bool,
     },
 
     /// Manage configuration
@@ -145,8 +157,39 @@ enum EventCommand {
 enum ConfigCommand {
     /// Show current configuration
     Show,
+    /// Print the configuration file path
+    Path,
     /// Set a config value
     Set { key: String, value: String },
+}
+
+#[derive(Subcommand)]
+enum AuthCommand {
+    /// Configure credentials interactively and verify them
+    Login,
+    /// Show whether credentials are configured and valid
+    Status {
+        /// Check local configuration without contacting Home Assistant
+        #[arg(long)]
+        offline: bool,
+    },
+    /// Remove the stored token for the selected profile
+    Logout,
+}
+
+#[derive(Subcommand)]
+enum ProfileCommand {
+    /// List configured profiles
+    List,
+    /// Select the default profile
+    Use { name: String },
+    /// Remove a profile
+    Remove {
+        name: String,
+        /// Confirm profile removal
+        #[arg(long)]
+        yes: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -195,6 +238,12 @@ async fn main() {
     // Use try_parse so we can intercept clap errors and emit a structured
     // error envelope as the last line of stderr (spec requirement).
     let cli = Cli::try_parse().unwrap_or_else(|e| {
+        if matches!(
+            e.kind(),
+            clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion
+        ) {
+            e.exit();
+        }
         // Print clap's human-readable message first, then emit the structured
         // envelope as the very last stderr line (spec: last line of stderr).
         let _ = e.print();
@@ -217,8 +266,36 @@ async fn main() {
     let out = OutputConfig::new(cli.output, cli.quiet);
 
     match cli.command {
-        Command::Init { profile } => {
-            commands::init::init(profile).await;
+        Command::Init | Command::Auth(AuthCommand::Login) => {
+            commands::auth::login(cli.profile).await;
+        }
+        Command::Auth(AuthCommand::Status { offline }) => {
+            if let Err(error) = commands::auth::status(cli.profile, offline, &out).await {
+                exit_with_error(&out, &error);
+            }
+        }
+        Command::Auth(AuthCommand::Logout) => {
+            if let Err(error) = commands::auth::logout(cli.profile.as_deref(), &out) {
+                exit_with_error(&out, &error);
+            }
+        }
+        Command::Profile(ProfileCommand::List) => {
+            commands::config::profile_list(&out, cli.profile.as_deref());
+        }
+        Command::Profile(ProfileCommand::Use { name }) => {
+            if let Err(error) = commands::config::profile_use(&out, &name) {
+                exit_with_error(&out, &error);
+            }
+        }
+        Command::Profile(ProfileCommand::Remove { name, yes }) => {
+            if let Err(error) = commands::config::profile_remove(&out, &name, yes) {
+                exit_with_error(&out, &error);
+            }
+        }
+        Command::Doctor { offline } => {
+            if let Err(error) = commands::doctor::run(cli.profile, offline, &out).await {
+                exit_with_error(&out, &error);
+            }
         }
         Command::Schema => {
             commands::schema::print_schema();
@@ -230,6 +307,7 @@ async fn main() {
             ConfigCommand::Show => {
                 commands::config::show(&out, cli.profile.as_deref());
             }
+            ConfigCommand::Path => commands::config::path(&out),
             ConfigCommand::Set { key, value } => {
                 commands::config::set(&out, cli.profile.as_deref(), &key, &value);
             }
@@ -358,7 +436,10 @@ async fn main() {
                         }
                     },
                 },
-                Command::Init { .. }
+                Command::Init
+                | Command::Auth(_)
+                | Command::Profile(_)
+                | Command::Doctor { .. }
                 | Command::Schema
                 | Command::Config(_)
                 | Command::Completions { .. } => unreachable!(),
@@ -371,4 +452,9 @@ async fn main() {
             }
         }
     }
+}
+
+fn exit_with_error(out: &OutputConfig, error: &api::HaError) -> ! {
+    out.print_error(error);
+    std::process::exit(exit_codes::for_error(error));
 }

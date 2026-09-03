@@ -23,6 +23,9 @@ curl -fsSL https://github.com/rvben/homeassistant-cli/releases/latest/download/h
 # Interactive setup (creates config with your HA token)
 ha init
 
+# Verify the active profile against Home Assistant
+ha auth status
+
 # List all lights
 ha entity list --domain light
 
@@ -43,6 +46,8 @@ ha entity watch sensor.temperature
 `~/.config/ha/config.toml`
 
 ```toml
+active_profile = "default"
+
 [default]
 url = "http://homeassistant.local:8123"
 token = "eyJ..."
@@ -65,6 +70,25 @@ Create a long-lived access token in Home Assistant: **Settings > Profile > Long-
 ### Precedence
 
 CLI flags > environment variables > config file
+
+The account and configuration workflow is shared with the other service CLIs:
+
+```bash
+ha init --profile home
+ha auth login --profile home
+ha auth status [--offline] --profile home
+ha auth logout --profile home
+ha profile list
+ha profile use home
+ha profile remove home --yes
+ha config show
+ha config path
+ha doctor [--offline]
+```
+
+`auth status` and `doctor` contact Home Assistant by default. `--offline`
+checks only the locally stored URL and token. Logout removes the stored token
+while preserving the profile URL; `HA_TOKEN`, if set, remains in effect.
 
 ## Commands
 
@@ -95,8 +119,16 @@ CLI flags > environment variables > config file
 | Command | Description |
 |---------|-------------|
 | `ha init [--profile <name>]` | Set up credentials interactively |
+| `ha auth login [--profile <name>]` | Configure and verify credentials (`init` is retained as an alias) |
+| `ha auth status [--offline] [--profile <name>]` | Check authentication state |
+| `ha auth logout [--profile <name>]` | Remove the selected profile's stored token |
+| `ha profile list` | List profiles |
+| `ha profile use <name>` | Select the default profile |
+| `ha profile remove <name> --yes` | Remove a profile |
 | `ha config show` | Show current configuration |
+| `ha config path` | Print the configuration file path |
 | `ha config set <key> <value>` | Set a config value |
+| `ha doctor [--offline]` | Check configuration and connectivity |
 | `ha schema` | Print machine-readable schema of all commands |
 | `ha completions <shell>` | Generate shell completions (bash, zsh, fish, elvish, powershell) |
 
