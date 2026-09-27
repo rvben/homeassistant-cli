@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.5](https://github.com/rvben/homeassistant-cli/compare/v0.2.4...v0.2.5) - 2026-09-27
+
+### Fixed
+
+- **deps**: update rustls to 0.23.45 for RUSTSEC-2026-0285 ([3a49a04](https://github.com/rvben/homeassistant-cli/commit/3a49a04712f436ea33e9ef3adc88c1c4426ee21e))
+
 ## [0.2.4](https://github.com/rvben/homeassistant-cli/compare/v0.2.3...v0.2.4) - 2026-09-03
 
 ### Added
