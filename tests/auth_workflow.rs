@@ -47,6 +47,17 @@ fn stdout_json(output: Output) -> Value {
 }
 
 #[test]
+fn auto_output_is_json_when_stdout_is_piped() {
+    let config_home = TempDir::new().expect("temp config home");
+    write_profiles(&config_home);
+
+    // Command::output gives the child a pipe even when the test runner has a TTY.
+    let profiles = stdout_json(ha(&config_home, &["profile", "list"]));
+    assert_eq!(profiles["total"], 2);
+    assert_eq!(profiles["items"][0]["name"], "default");
+}
+
+#[test]
 fn canonical_profile_auth_and_config_workflow() {
     let config_home = TempDir::new().expect("temp config home");
     write_profiles(&config_home);

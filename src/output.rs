@@ -559,17 +559,6 @@ mod tests {
     }
 
     #[test]
-    fn output_format_auto_is_json_when_not_tty() {
-        // In tests, stdout is not a TTY, so auto should select JSON.
-        let cfg = OutputConfig::new(None, false);
-        // stdout in test context is piped, so is_json() returns true for Auto.
-        assert!(
-            cfg.is_json(),
-            "Auto format should be JSON when stdout is not a TTY"
-        );
-    }
-
-    #[test]
     fn output_format_text_is_not_json_even_when_piped() {
         // Explicit text wins over TTY detection.
         let cfg = OutputConfig::new(Some(OutputFormat::Text), false);
