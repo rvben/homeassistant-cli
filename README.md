@@ -9,6 +9,14 @@ A command-line interface for [Home Assistant](https://www.home-assistant.io/) --
 
 ## Install
 
+### Homebrew
+
+```sh
+brew install rvben/tap/homeassistant-cli
+```
+
+### Other installation methods
+
 ```bash
 # From crates.io
 cargo install homeassistant-cli
